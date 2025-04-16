@@ -9,13 +9,18 @@ import {
 } from '@mui/material';
 
 const navLinks = [
-  { label: 'Elections', path: '/elections' },
+  { label: 'Elections', path: '/votingPage' },
   { label: 'Vote Now', path: '/vote' },
   { label: 'How It Works', path: '/how-it-works' },
 ];
 
+
+
 const Navbar = () => {
-  const theme = useTheme();
+
+  const handleNavigation = (route: string) => {
+    window.location.href = route;
+  }
 
   return (
     <AppBar
@@ -51,9 +56,8 @@ const Navbar = () => {
         <Box sx={{ display: 'flex', gap: 2 }}>
           {navLinks.map((link) => (
             <Button
+              onClick={() => { handleNavigation(link.path) }}
               key={link.label}
-              // component={RouterLink}
-              // to={link.path}
               sx={{
                 color: '#fff',
                 textTransform: 'none',
