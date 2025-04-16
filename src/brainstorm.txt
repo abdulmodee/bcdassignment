@@ -1,0 +1,6 @@
+functionalities 
+- list of elections you can vote on that are on going
+- elections are clickable
+    - see the candidates
+    - candidate is clickable to vote
+    - submit button
