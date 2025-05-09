@@ -1,0 +1,56 @@
+# General ignore list
+.env
+
+# Ignore list for Python project
+venv/
+__pycache__/
+
+
+*.pyc
+*.pyo
+*.pyd
+
+*.log
+
+# Ignore list for hardhat project
+cache/
+
+# Artifacts and compiled contracts
+artifacts/
+typechain-types/
+contract/ignition/deployments/
+
+node_modules
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
+
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
