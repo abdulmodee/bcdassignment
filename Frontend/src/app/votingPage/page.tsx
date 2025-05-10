@@ -3,7 +3,11 @@ import Button from '../../components/Button';
 import './votingPage.css';
 import Navbar from '../../components/navbar';
 import { BrowserProvider, ethers } from 'ethers';
-import ElectionABI from '../../ElectionABI.json';
+import ElectionABI from '../../ABI/ElectionABI.json';
+import FactoryABI from '../../ABI/ElectionFactoryABI.json';
+
+// Update this with your deployed factory address
+const FACTORY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
 type Candidate = {
   id: number;
@@ -15,87 +19,64 @@ type Election = {
   id: number;
   title: string;
   candidates: Candidate[];
+  address?: string; // Add blockchain address
+  ended?: boolean;   // Add ended status
 };
-
-const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
-
 
 export default function VotingPage() {
   const [elections, setElections] = useState<Election[]>([]);
-  const [selectedElection, setSelectedElection] = useState<Election | null>(
-    null
-  );
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
-    null
-  );
+  const [selectedElection, setSelectedElection] = useState<Election | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [votedElectionIds, setVotedElectionIds] = useState<number[]>([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Blockchain state
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<any>(null);
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [account, setAccount] = useState('');
+  const [factoryContract, setFactoryContract] = useState<ethers.Contract | null>(null);
+  const [electionContracts, Elect] = useState<{[key: number]: ethers.Contract}>({});
+  
   type Proposal = { name: string; votes: number };
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [voteStatus, setVoteStatus] = useState('');
   const [isOwner, setIsOwner] = useState(false);
 
+  // Initialize mock elections (keep this for UI testing)
   useEffect(() => {
     const fetchElections = async () => {
       try {
-        const response = await fetch('/api/elections'); // Replace with your actual API endpoint
-        if (!response.ok) throw new Error('Failed to fetch elections');
+        // Keep your mock data for now
         const data = [
           {
             id: 1,
             title: 'Presidential Election',
             candidates: [
-              {
-                id: 1,
-                name: 'Alice Johnson',
-                image: '/candidate1.jpg',
-              },
-              {
-                id: 2,
-                name: 'Bob Smith',
-                image: '/candidate2.jpg',
-              },
-              {
-                id: 3,
-                name: 'Alice Johnson',
-                image: '/candidate1.jpg',
-              },
-              {
-                id: 4,
-                name: 'Bob Smith',
-                image: '/candidate2.jpg',
-              },
+              { id: 1, name: 'Alice Johnson', image: '/candidate1.jpg' },
+              { id: 2, name: 'Bob Smith', image: '/candidate2.jpg' },
+              { id: 3, name: 'Alice Johnson', image: '/candidate1.jpg' },
+              { id: 4, name: 'Bob Smith', image: '/candidate2.jpg' },
             ],
           },
           {
             id: 2,
             title: 'District Election',
             candidates: [
-              {
-                id: 1,
-                name: 'Abdurrahman Johnson',
-                image: '/candidate1.jpg',
-              },
-              {
-                id: 2,
-                name: 'Youssef Smith',
-                image: '/candidate2.jpg',
-              },
+              { id: 1, name: 'Abdurrahman Johnson', image: '/candidate1.jpg' },
+              { id: 2, name: 'Youssef Smith', image: '/candidate2.jpg' },
             ],
           },
         ];
 
+        // For now, keep using mock data but we'll supplement with blockchain data
         setElections(data);
       } catch (err) {
         setError((err as Error).message);
       } finally {
-        setLoading(false);
+        // Don't set loading to false yet, wait for blockchain connection
       }
     };
 
@@ -109,114 +90,222 @@ export default function VotingPage() {
       setProvider(newProvider);
     } else {
       console.error('MetaMask not detected');
+      setLoading(false); // Stop loading if no MetaMask
     }
   }, []);
 
-  // Request account access and set up contract
+  // Initialize signer
   useEffect(() => {
     if (!provider) return;
 
     const setupSigner = async () => {
-      await provider.send('eth_requestAccounts', []);
-      const newSigner = await provider.getSigner();
-      setSigner(newSigner);
-      const addr = await newSigner.getAddress();
-      setAccount(addr);
-      const electionContract = new ethers.Contract(CONTRACT_ADDRESS, ElectionABI.abi, newSigner);
-      setContract(electionContract);
+      try {
+        await provider.send('eth_requestAccounts', []);
+        const newSigner = await provider.getSigner();
+        setSigner(newSigner);
+        const addr = await newSigner.getAddress();
+        setAccount(addr);
+      } catch (err) {
+        console.error("Error setting up signer:", err);
+        setLoading(false);
+      }
     };
 
-
-
     setupSigner();
-
   }, [provider]);
 
-  // Load proposals and check if current user is owner
+  // Initialize factory contract
   useEffect(() => {
-    async function loadData() {
-      if (!contract) return;
+    if (!signer) return;
 
+    const initFactory = async () => {
       try {
-        console.log("Contract address:", CONTRACT_ADDRESS);
-        console.log("Connected account:", account);
+        const factory = new ethers.Contract(FACTORY_ADDRESS, FactoryABI.abi, signer);
+        setFactoryContract(factory);
+        
+        // Check if user is factory owner
+        const ownerAddr = await factory.owner();
+        setIsOwner(ownerAddr.toLowerCase() === account.toLowerCase());
+      } catch (err) {
+        console.error("Error initializing factory contract:", err);
+      }
+    };
 
-        // First try to get owner (simpler call to verify connection)
-        console.log(contract);
-        try {
-          const ownerAddr = await contract.owner();
-          console.log("Contract owner:", ownerAddr);
-          setIsOwner(ownerAddr.toLowerCase() === account.toLowerCase());
-        } catch (err) {
-          console.error("Error getting owner:", err);
-          setError("Could not verify contract owner. Contract may be invalid.");
+    initFactory();
+  }, [signer, account]);
+
+  // Fetch blockchain elections
+  useEffect(() => {
+    if (!factoryContract) return;
+
+    const fetchBlockchainElections = async () => {
+      try {
+        // Get all election addresses
+        const electionAddresses = await factoryContract.getAllElections();
+        
+        if (electionAddresses.length === 0) {
+          console.log("No elections found on blockchain");
+          setLoading(false);
           return;
         }
 
-        // Now try to get proposals with detailed error handling
-        try {
-          // Check totalProposals first (to verify state)
-          // const totalProps = await contract.totalProposals?.();
-          // console.log("Total proposals in contract:", totalProps?.toString() || "Method not found");
+        // Create array to store blockchain elections
+        const blockchainElections: Election[] = [];
 
-          // Get all proposals
-          console.log("Attempting to get all proposals...");
-          const raw = await contract.getAllProposals();
+        // Loop through each election address
+        for (let i = 0; i < electionAddresses.length; i++) {
+          try {
+            // Get election details
+            const details = await factoryContract.getElectionDetails(i);
+            
+            // Create election contract instance
+            const electionContract = new ethers.Contract(
+              details.electionAddress, 
+              ElectionABI.abi, 
+              signer
+            );
 
-          console.log("Proposals data:", raw);
+            // Store contract reference for later use
+            Elect(prev => ({
+              ...prev,
+              [i+1]: electionContract // Use 1-based indexing to match your mock data
+            }));
 
-          if (Array.isArray(raw) && raw.length > 0) {
+            // Get proposals
+            const rawProposals = await electionContract.getAllProposals();
+            const candidates = rawProposals.map((p: any, index: number) => ({
+              id: index + 1,
+              name: p.name,
+              // image: '/candidate-placeholder.jpg' // Default image
+            }));
 
-            const data = raw.map((p) => { return p });
-            const data_2 = data.map((item) => {
-              return {
-                name: item.name,
-                votes: item.votes
-              }
-            })
+            // Check if user has voted
+            const hasVoted = await electionContract.hasVoted(account);
+            if (hasVoted && !votedElectionIds.includes(i+1)) {
+              setVotedElectionIds(prev => [...prev, i+1]);
+            }
 
-            setProposals(data_2);
-            setError("");
-          } else if (Array.isArray(raw) && raw.length === 0) {
-            console.log("No proposals found in contract");
-            setProposals([]);
-            setError("No proposals found in the voting contract");
-          } else {
-            console.error("Unexpected proposals data format:", raw);
-            setProposals([]);
-            setError("Invalid data format received from contract");
+            // Create election object
+            const election: Election = {
+              id: i + 1, // Use 1-based indexing to match your mock data
+              title: details.title,
+              candidates: candidates,
+              address: details.electionAddress,
+              ended: details.ended
+            };
+
+            blockchainElections.push(election);
+          } catch (err) {
+            console.error(`Error fetching election at index ${i}:`, err);
           }
-        } catch (err) {
-          console.error("Error fetching proposals:", err);
-          setProposals([]);
-          setError("Failed to load proposals from blockchain. See console for details.");
+        }
+
+        // Replace mock elections with blockchain elections
+        if (blockchainElections.length > 0) {
+          setElections(blockchainElections);
         }
       } catch (err) {
-        console.error("General contract error:", err);
-        setError("Failed to interact with blockchain contract");
+        console.error("Error fetching blockchain elections:", err);
+      } finally {
+        setLoading(false);
       }
+    };
+
+    fetchBlockchainElections();
+  }, [factoryContract, signer, account]);
+
+  // Update selected election's proposals
+  useEffect(() => {
+    if (!selectedElection || !electionContracts[selectedElection.id]) return;
+
+    const fetchProposals = async () => {
+      try {
+        const electionContract = electionContracts[selectedElection.id];
+        
+        // Get all proposals
+        const rawProposals = await electionContract.getAllProposals();
+        
+        if (Array.isArray(rawProposals) && rawProposals.length > 0) {
+          const formattedProposals = rawProposals.map((p: any) => ({
+            name: p.name,
+            votes: Number(p.votes)
+          }));
+          setProposals(formattedProposals);
+          setError("");
+        } else {
+          console.log("No proposals found for selected election");
+          setProposals([]);
+          setError("No proposals found for this election");
+        }
+      } catch (err) {
+        console.error("Error fetching proposals for selected election:", err);
+        setError("Failed to load election details");
+      }
+    };
+
+    fetchProposals();
+  }, [selectedElection, electionContracts]);
+
+  // Handle blockchain vote submission
+  const handleBlockchainVote = async () => {
+    if (!selectedElection || !selectedCandidate || !electionContracts[selectedElection.id]) {
+      setMessage('⚠️ Please select a candidate first.');
+      return;
     }
 
-    loadData();
-  }, [contract, account]);
+    if (votedElectionIds.includes(selectedElection.id)) {
+      setMessage('⚠️ You have already voted in this election.');
+      return;
+    }
 
-  const handleSubmit = () => {
-    if (selectedElection && selectedCandidate) {
-      if (votedElectionIds.includes(selectedElection.id)) {
-        setMessage('You have already voted in this election.');
-        return;
-      }
+    // Set loading state
+    setLoading(true);
+    setMessage('📝 Submitting your vote to the blockchain...');
 
-      // Optionally: POST vote to server here
-
-      setMessage(
-        `✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`
-      );
+    try {
+      const electionContract = electionContracts[selectedElection.id];
+      console.log("Contract: ", selectedCandidate.name);
+      // Submit vote transaction
+      const tx = await electionContract.vote(selectedCandidate.name);
+      await tx.wait();
+      console.log("TX: ", tx);
+      // Update voted election IDs
       setVotedElectionIds([...votedElectionIds, selectedElection.id]);
+      setMessage(`✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`);
+      
+      // Reset selection
       setSelectedElection(null);
       setSelectedCandidate(null);
+    } catch (err: any) {
+      console.error("Error submitting vote:", err); 
+      setMessage(`⚠️ Error: ${err.message || 'Failed to submit vote'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Override the original handleSubmit to use blockchain voting
+  const handleSubmit = () => {
+    // If we have a blockchain connection, use that
+    if (electionContracts[selectedElection?.id || 0]) {
+      handleBlockchainVote();
     } else {
-      setMessage('⚠️ Please select a candidate before submitting.');
+      // Fallback to mock voting for testing
+      if (selectedElection && selectedCandidate) {
+        if (votedElectionIds.includes(selectedElection.id)) {
+          setMessage('You have already voted in this election.');
+          return;
+        }
+
+        setMessage(
+          `✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`
+        );
+        setVotedElectionIds([...votedElectionIds, selectedElection.id]);
+        setSelectedElection(null);
+        setSelectedCandidate(null);
+      } else {
+        setMessage('⚠️ Please select a candidate before submitting.');
+      }
     }
   };
 
