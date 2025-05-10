@@ -112,6 +112,12 @@ contract Election {
         ended = true;
     }
 
+    // Add this function to your Election contract
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner is the zero address");
+        owner = newOwner;
+    }
+
     // getters
     function getProposalVotes(
         string memory proposal
