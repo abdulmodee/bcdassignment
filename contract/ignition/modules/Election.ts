@@ -11,7 +11,7 @@ const VotingSystemModule = buildModule("VotingSystemModule", (m) => {
     m.call(factory, "createElection", [
         "First Election",
         ["Proposal A", "Proposal B", "Proposal C"],
-        ["0x8A224DEbA686a42F4CB856390f34Baee6962F6bF"], // allowed voters
+        ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"], // allowed voters
         now,
         now + oneDay
     ]);

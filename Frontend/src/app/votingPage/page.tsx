@@ -7,7 +7,7 @@ import ElectionABI from '../../ABI/ElectionABI.json';
 import FactoryABI from '../../ABI/ElectionFactoryABI.json';
 
 // Update this with your deployed factory address
-const FACTORY_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const FACTORY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
 type Candidate = {
   id: number;
@@ -38,7 +38,7 @@ export default function VotingPage() {
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [account, setAccount] = useState('');
   const [factoryContract, setFactoryContract] = useState<ethers.Contract | null>(null);
-  const [electionContracts, setElectionContracts] = useState<{[key: number]: ethers.Contract}>({});
+  const [electionContracts, Elect] = useState<{[key: number]: ethers.Contract}>({});
   
   type Proposal = { name: string; votes: number };
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -166,7 +166,7 @@ export default function VotingPage() {
             );
 
             // Store contract reference for later use
-            setElectionContracts(prev => ({
+            Elect(prev => ({
               ...prev,
               [i+1]: electionContract // Use 1-based indexing to match your mock data
             }));
@@ -176,7 +176,7 @@ export default function VotingPage() {
             const candidates = rawProposals.map((p: any, index: number) => ({
               id: index + 1,
               name: p.name,
-              image: '/candidate-placeholder.jpg' // Default image
+              // image: '/candidate-placeholder.jpg' // Default image
             }));
 
             // Check if user has voted
@@ -264,11 +264,11 @@ export default function VotingPage() {
 
     try {
       const electionContract = electionContracts[selectedElection.id];
-      
+      console.log("Contract: ", selectedCandidate.name);
       // Submit vote transaction
       const tx = await electionContract.vote(selectedCandidate.name);
       await tx.wait();
-      
+      console.log("TX: ", tx);
       // Update voted election IDs
       setVotedElectionIds([...votedElectionIds, selectedElection.id]);
       setMessage(`✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`);
@@ -277,7 +277,7 @@ export default function VotingPage() {
       setSelectedElection(null);
       setSelectedCandidate(null);
     } catch (err: any) {
-      console.error("Error submitting vote:", err);
+      console.error("Error submitting vote:", err); 
       setMessage(`⚠️ Error: ${err.message || 'Failed to submit vote'}`);
     } finally {
       setLoading(false);
