@@ -10,7 +10,6 @@ import CreateElectionPage from "./app/createElection/page";
 function App() {
   return (
     <>
-      <DiscoverWalletProviders />
       <CssBaseline />
       <Router>
         <Routes>
