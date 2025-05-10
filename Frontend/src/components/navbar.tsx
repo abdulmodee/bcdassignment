@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppBar, Box, Toolbar, Typography, Button } from '@mui/material';
+import { DiscoverWalletProviders } from './DiscoverWalletProviders';
 
 const navLinks = [
   { label: 'Elections', path: '/votingPage' },
@@ -62,8 +63,9 @@ const Navbar = () => {
           </Button>
         </Typography>
 
-        {/* Navigation Buttons */}
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        {/* Navigation Buttons and Wallet */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {/* Navigation Links */}
           {navLinks.map((link) => (
             <Button
               onClick={() => {
@@ -87,6 +89,9 @@ const Navbar = () => {
               {link.label}
             </Button>
           ))}
+          
+          {/* Wallet Provider Component */}
+          <DiscoverWalletProviders />
         </Box>
       </Toolbar>
     </AppBar>
