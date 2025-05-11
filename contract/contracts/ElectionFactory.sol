@@ -26,7 +26,7 @@ contract ElectionFactory {
         string memory title,
         string[] memory proposals,
         address[] memory allowedVoters,
-        uint startTime,
+        uint startTime, 
         uint endTime
     ) external onlyOwner returns (address) {
         // Deploy new election contract
@@ -68,7 +68,8 @@ contract ElectionFactory {
         string memory title,
         bool ended,
         uint startTime,
-        uint endTime
+        uint endTime,
+        address[] memory allowedVoters
     ) {
         require(index < elections.length, "Invalid election index");
         
@@ -79,5 +80,6 @@ contract ElectionFactory {
         ended = election.ended();
         startTime = election.startTime();
         endTime = election.endTime();
+        allowedVoters = election.getAllowedVoters();
     }
 }

@@ -2,6 +2,25 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserProvider, ethers, Contract } from 'ethers';
 import FactoryABI from '../../ABI/ElectionFactoryABI.json';
+import Navbar from '../../components/navbar';
+import Footer from '../../components/footer';
+import { useWallet } from '../../components/WalletProvider';
+import {
+    Box,
+    Container,
+    Typography,
+    TextField,
+    Button,
+    Paper,
+    Chip,
+    CircularProgress,
+} from '@mui/material';
+import HowToVoteIcon from '@mui/icons-material/HowToVote';
+import BallotIcon from '@mui/icons-material/Ballot';
+import GroupIcon from '@mui/icons-material/Group';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import SendIcon from '@mui/icons-material/Send';
 
 // Update with your factory address
 const FACTORY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
@@ -13,129 +32,55 @@ export default function CreateElectionPage() {
     const [voters, setVoters] = useState<string>('');
     const [durationHours, setDurationHours] = useState<number>(24);
 
-    // Blockchain state
-    const [provider, setProvider] = useState<BrowserProvider | null>(null);
-    const [signer, setSigner] = useState<ethers.Signer | null>(null);
+    // Use wallet context instead of managing connection separately
+    const { provider, signer, account } = useWallet();
     const [factoryContract, setFactoryContract] = useState<Contract | null>(null);
-    const [account, setAccount] = useState<string>('');
 
     // UI state
     const [status, setStatus] = useState<string>('');
+    const [statusType, setStatusType] = useState<'success' | 'info' | 'warning' | 'error'>('info');
     const [loading, setLoading] = useState<boolean>(false);
-    const [debug, setDebug] = useState<string>('');
 
-    // Debug eligibility inputs
-    const [debugElectionAddress, setDebugElectionAddress] = useState<string>('');
-    const [debugProposalName, setDebugProposalName] = useState<string>('');
-
-    // Initialize provider
+    // Initialize factory contract when wallet is connected
     useEffect(() => {
-        const initProvider = async () => {
-            if (window.ethereum) {
-                try {
-                    const provider = new BrowserProvider(window.ethereum);
-                    setProvider(provider);
+        const initContract = async () => {
+            if (!signer) return;
 
-                    await provider.send('eth_requestAccounts', []);
-                    const signer = await provider.getSigner();
-                    setSigner(signer);
-
-                    const address = await signer.getAddress();
-                    setAccount(address);
-
-                    // Initialize factory contract
-                    const factory = new ethers.Contract(FACTORY_ADDRESS, FactoryABI.abi, signer);
-                    setFactoryContract(factory);
-
-                    setStatus('Connected to wallet');
-                } catch (err: any) {
-                    console.error("Connection error:", err);
-                    setStatus(`Connection error: ${err.message}`);
-                }
-            } else {
-                setStatus('Please install MetaMask');
+            try {
+                const factory = new ethers.Contract(FACTORY_ADDRESS, FactoryABI.abi, signer);
+                setFactoryContract(factory);
+                setStatus('Ready to create elections');
+                setStatusType('info');
+            } catch (err: any) {
+                console.error("Contract initialization error:", err);
+                setStatus(`Failed to initialize: ${err.message}`);
+                setStatusType('error');
             }
         };
 
-        initProvider();
-    }, []);
+        initContract();
+    }, [signer]);
 
-    // Add the debug function to check vote eligibility
-    const checkVoteEligibility = async (electionAddress: string, proposalName: string) => {
-        if (!signer) {
-            setDebug("Error: Wallet not connected");
-            return;
-        }
-
-        try {
-            // Import ElectionABI
-            const ElectionABI = (await import('../../ABI/ElectionABI.json')).default;
-
-            // Create contract instance
-            const electionContract = new ethers.Contract(electionAddress, ElectionABI.abi, signer);
-
-            // Check if user is a registered voter
-            const isRegistered = await electionContract.voterRegistry(account);
-            let debugInfo = `Is registered voter: ${isRegistered}\n`;
-
-            // Check if user has already voted
-            const hasVoted = await electionContract.hasVoted(account);
-            debugInfo += `Has already voted: ${hasVoted}\n`;
-
-            // Check if proposal exists
-            try {
-                const votes = await electionContract.getProposalVotes(proposalName);
-                debugInfo += `Proposal exists, current votes: ${votes.toString()}\n`;
-            } catch (err: any) {
-                debugInfo += `Proposal might not exist: ${err.message}\n`;
-            }
-
-            // Check voting period
-            const startTime = await electionContract.startTime();
-            const endTime = await electionContract.endTime();
-            const ended = await electionContract.ended();
-            const currentTime = Math.floor(Date.now() / 1000);
-
-            debugInfo += `Start time: ${new Date(Number(startTime) * 1000).toLocaleString()}\n`;
-            debugInfo += `End time: ${new Date(Number(endTime) * 1000).toLocaleString()}\n`;
-            debugInfo += `Current time: ${new Date(currentTime * 1000).toLocaleString()}\n`;
-            debugInfo += `Election ended: ${ended}\n`;
-            debugInfo += `Is active: ${currentTime >= Number(startTime) && currentTime <= Number(endTime) && !ended}\n`;
-
-            // Check the exact status code
-            const status = await electionContract.canVote(proposalName);
-            debugInfo += `Vote status code: ${status.toString()}\n`;
-
-            switch (Number(status)) {
-                case 0: debugInfo += `Status: Can vote`; break;
-                case 1: debugInfo += `Status: Not registered to vote`; break;
-                case 2: debugInfo += `Status: Already voted`; break;
-                case 3: debugInfo += `Status: Invalid proposal`; break;
-                default: debugInfo += `Status: Unknown`;
-            }
-
-            setDebug(debugInfo);
-        } catch (err: any) {
-            setDebug(`Error checking vote eligibility: ${err.message}`);
-        }
-    };
-
+    
     // Handle form submission
     const handleCreateElection = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!factoryContract) {
             setStatus('Contract not initialized');
+            setStatusType('error');
             return;
         }
 
         if (!title || !proposals || !voters) {
             setStatus('Please fill all required fields');
+            setStatusType('warning');
             return;
         }
 
         setLoading(true);
         setStatus('Creating election...');
+        setStatusType('info');
 
         try {
             const proposalArray = proposals.split(',').map(p => p.trim());
@@ -155,6 +100,7 @@ export default function CreateElectionPage() {
             );
 
             setStatus(`Transaction submitted: ${tx.hash}`);
+            setStatusType('info');
 
             // Wait for confirmation
             const receipt = await tx.wait();
@@ -194,19 +140,7 @@ export default function CreateElectionPage() {
                 }
             }
 
-            if (electionAddress) {
-                setStatus(`Election created successfully at address ${electionAddress}`);
-                // Auto-fill the debug address field with the new election
-                setDebugElectionAddress(electionAddress);
-
-                // If proposals were entered, fill the first one for debugging
-                if (proposalArray.length > 0) {
-                    setDebugProposalName(proposalArray[0]);
-                }
-            } else {
-                setStatus('Election created but address not captured');
-            }
-
+            
             // Reset form
             setTitle('');
             setProposals('');
@@ -225,155 +159,275 @@ export default function CreateElectionPage() {
             } else {
                 setStatus(`Error: ${err.message}`);
             }
+            setStatusType('error');
         } finally {
             setLoading(false);
         }
     };
 
     // Debug vote eligibility for a specific election and proposal
-    const handleDebugCheck = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (debugElectionAddress && debugProposalName) {
-            checkVoteEligibility(debugElectionAddress, debugProposalName);
-        } else {
-            setDebug("Please enter both election address and proposal name");
-        }
-    };
+    
 
     return (
-        <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-            <h1>Create New Election</h1>
+        <>
+            {/* Hero Section */}
+            <Box
+                sx={{
+                    background: "linear-gradient(135deg, #0f2027, #203a43, #2c5364)",
+                    color: "#fff",
+                    px: { xs: 3, md: 8 },
+                    py: { xs: 6, md: 10 },
+                }}
+            >
+                <Navbar />
+                <Container maxWidth="lg">
+                    <Box textAlign="center" py={8}>
+                        <Typography
+                            variant="h2"
+                            sx={{
+                                fontWeight: "bold",
+                                mb: 3,
+                                textShadow: "0 4px 6px rgba(0,0,0,0.3)"
+                            }}
+                        >
+                            Create New Election
+                        </Typography>
+                        <Typography
+                            variant="h6"
+                            sx={{ maxWidth: 700, mx: "auto", color: "#d1d1d1", mb: 4 }}
+                        >
+                            Set up a secure blockchain-based election with customizable proposals and voter lists
+                        </Typography>
+                    </Box>
+                </Container>
+            </Box>
 
-            <div style={{ marginBottom: '20px' }}>
-                <p>Connected account: {account || 'Not connected'}</p>
-                <p>Status: {status}</p>
-            </div>
+            {/* Main Content */}
+            <Box
+                sx={{
+                    py: { xs: 8, md: 12 },
+                    px: { xs: 3, md: 6 },
+                    backgroundColor: '#121212',
+                    color: '#fff',
+                    minHeight: '100vh'
+                }}
+            >
+                <Container maxWidth="lg">
+                    {/* Status Box */}
+                    <Box mb={6} display="flex" justifyContent="center">
+                        <Chip
+                            icon={account ? <CheckCircleOutlineIcon /> : undefined}
+                            label={account ? `Connected: ${account.slice(0, 6)}...${account.slice(-4)}` : 'Wallet Not Connected'}
+                            color={account ? "success" : "error"}
+                            variant="outlined"
+                            sx={{
+                                fontSize: '1rem',
+                                py: 2.5,
+                                px: 1.5,
+                                borderRadius: 3,
+                                backgroundColor: account ? 'rgba(46, 196, 182, 0.1)' : 'rgba(244, 67, 54, 0.1)'
+                            }}
+                        />
+                    </Box>
 
-            <form onSubmit={handleCreateElection}>
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Election Title:
-                    </label>
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        style={{ width: '100%', padding: '8px' }}
-                        placeholder="Presidential Election 2025"
-                    />
-                </div>
+                    {/* {status && (
+                        <Alert
+                            severity={statusType}
+                            variant="filled"
+                            sx={{
+                                mb: 4,
+                                borderRadius: 2,
+                                '& .MuiAlert-message': { fontSize: '1rem' }
+                            }}
+                        >
+                            {status}
+                        </Alert>
+                    )} */}
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Proposals (comma-separated):
-                    </label>
-                    <textarea
-                        value={proposals}
-                        onChange={(e) => setProposals(e.target.value)}
-                        style={{ width: '100%', padding: '8px', minHeight: '60px' }}
-                        placeholder="Proposal A, Proposal B, Proposal C"
-                    />
-                </div>
+                    {/* Create Election Form */}
+                    <Paper
+                        elevation={3}
+                        sx={{
+                            p: { xs: 3, md: 5 },
+                            borderRadius: 4,
+                            backgroundColor: '#1f1f1f',
+                            mb: 6,
+                            boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+                        }}
+                    >
+                        <Typography variant="h4" fontWeight="bold" mb={4} color="white">
+                            Election Details
+                        </Typography>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Voter Addresses (comma-separated):
-                    </label>
-                    <textarea
-                        value={voters}
-                        onChange={(e) => setVoters(e.target.value)}
-                        style={{ width: '100%', padding: '8px', minHeight: '60px' }}
-                        placeholder="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0x..."
-                    />
-                </div>
+                        <Box component="form" onSubmit={handleCreateElection} noValidate>
+                            <Box sx={{ mb: 4 }}>
+                                <Box display="flex" alignItems="center" mb={1}>
+                                    <BallotIcon sx={{ color: '#00c896', mr: 1 }} />
+                                    <Typography variant="h6" color="white">
+                                        Election Title
+                                    </Typography>
+                                </Box>
+                                <TextField
+                                    fullWidth
+                                    placeholder="Presidential Election 2025"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    variant="outlined"
+                                    required
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.23)',
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            color: 'white',
+                                            borderRadius: 2,
+                                        },
+                                        '& .MuiInputLabel-root': {
+                                            color: 'white',
+                                        },
+                                    }}
+                                />
+                            </Box>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Duration (hours):
-                    </label>
-                    <input
-                        type="number"
-                        value={durationHours}
-                        onChange={(e) => setDurationHours(parseInt(e.target.value) || 24)}
-                        style={{ width: '100%', padding: '8px' }}
-                        min="1"
-                    />
-                </div>
+                            <Box sx={{ mb: 4 }}>
+                                <Box display="flex" alignItems="center" mb={1}>
+                                    <HowToVoteIcon sx={{ color: '#00c896', mr: 1 }} />
+                                    <Typography variant="h6" color="white">
+                                        Candidates (comma-separated)
+                                    </Typography>
+                                </Box>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={3}
+                                    placeholder="Candidate A, Candidate B, Candidate C"
+                                    value={proposals}
+                                    onChange={(e) => setProposals(e.target.value)}
+                                    variant="outlined"
+                                    required
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.23)',
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            color: 'white',
+                                            borderRadius: 2,
+                                        },
+                                    }}
+                                />
+                            </Box>
 
-                <button
-                    type="submit"
-                    disabled={loading || !factoryContract}
-                    style={{
-                        padding: '10px 15px',
-                        backgroundColor: loading ? '#ccc' : '#4CAF50',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: loading ? 'not-allowed' : 'pointer'
-                    }}
-                >
-                    {loading ? 'Creating...' : 'Create Election'}
-                </button>
-            </form>
+                            <Box sx={{ mb: 4 }}>
+                                <Box display="flex" alignItems="center" mb={1}>
+                                    <GroupIcon sx={{ color: '#00c896', mr: 1 }} />
+                                    <Typography variant="h6" color="white">
+                                        Voter Addresses (comma-separated)
+                                    </Typography>
+                                </Box>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={3}
+                                    placeholder="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0x..."
+                                    value={voters}
+                                    onChange={(e) => setVoters(e.target.value)}
+                                    variant="outlined"
+                                    required
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.23)',
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            color: 'white',
+                                            borderRadius: 2,
+                                        },
+                                    }}
+                                />
+                            </Box>
 
-            <hr style={{ margin: '30px 0' }} />
+                            <Box sx={{ mb: 6 }}>
+                                <Box display="flex" alignItems="center" mb={1}>
+                                    <AccessTimeIcon sx={{ color: '#00c896', mr: 1 }} />
+                                    <Typography variant="h6" color="white">
+                                        Duration (hours)
+                                    </Typography>
+                                </Box>
+                                <TextField
+                                    fullWidth
+                                    type="number"
+                                    value={durationHours}
+                                    onChange={(e) => setDurationHours(parseInt(e.target.value) || 24)}
+                                    variant="outlined"
+                                    required
+                                    inputProps={{ min: 1 }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            '& fieldset': {
+                                                borderColor: 'rgba(255, 255, 255, 0.23)',
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: '#00c896',
+                                            },
+                                            color: 'white',
+                                            borderRadius: 2,
+                                        },
+                                    }}
+                                />
+                            </Box>
 
-            <h2>Debug Vote Eligibility</h2>
-            <form onSubmit={handleDebugCheck}>
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Election Address:
-                    </label>
-                    <input
-                        type="text"
-                        value={debugElectionAddress}
-                        onChange={(e) => setDebugElectionAddress(e.target.value)}
-                        style={{ width: '100%', padding: '8px' }}
-                        placeholder="0x..."
-                    />
-                </div>
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                disabled={loading || !factoryContract || !account}
+                                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                                sx={{
+                                    backgroundColor: "#00c896",
+                                    px: 5,
+                                    py: 1.5,
+                                    fontSize: "1.1rem",
+                                    borderRadius: "30px",
+                                    boxShadow: "0 4px 20px rgba(0,200,150,0.4)",
+                                    textTransform: "none",
+                                    transition: "all 0.3s ease-in-out",
+                                    "&:hover": {
+                                        backgroundColor: "#00e6ac",
+                                        boxShadow: "0 6px 25px rgba(0,230,172,0.6)"
+                                    },
+                                    "&:disabled": {
+                                        backgroundColor: "rgba(0, 200, 150, 0.3)",
+                                    }
+                                }}
+                            >
+                                {loading ? 'Creating...' : 'Create Election'}
+                            </Button>
+                        </Box>
+                    </Paper>
+                    
+                </Container>
+            </Box>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>
-                        Proposal Name:
-                    </label>
-                    <input
-                        type="text"
-                        value={debugProposalName}
-                        onChange={(e) => setDebugProposalName(e.target.value)}
-                        style={{ width: '100%', padding: '8px' }}
-                        placeholder="Proposal A"
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    style={{
-                        padding: '10px 15px',
-                        backgroundColor: '#2196F3',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Check Eligibility
-                </button>
-            </form>
-
-            {debug && (
-                <div style={{
-                    marginTop: '20px',
-                    padding: '15px',
-                    backgroundColor: '#f5f5f5',
-                    borderLeft: '4px solid #2196F3'
-                }}>
-                    <h3>Debug Info:</h3>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {debug}
-                    </pre>
-                </div>
-            )}
-        </div>
+            <Footer />
+        </>
     );
 }

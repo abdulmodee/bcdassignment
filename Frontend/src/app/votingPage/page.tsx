@@ -1,29 +1,25 @@
+'use client';
 import React, { useState, useEffect } from 'react';
+import { Box, Container, Typography, Alert } from '@mui/material';
 import Button from '../../components/Button';
 import './votingPage.css';
 import Navbar from '../../components/navbar';
-import { BrowserProvider, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import ElectionABI from '../../ABI/ElectionABI.json';
 import FactoryABI from '../../ABI/ElectionFactoryABI.json';
+import { useWallet } from '../../components/WalletProvider';
+import ElectionCard from '../../components/ElectionCard';
+import CandidateCard from '../../components/CandidateCard';
+import VoteCountDashboard from '../../components/VoteCountDashboard';
+import VoterParticipationMetrics from '../../components/VoterParticipationMetrics';
+import { Election, Candidate, Proposal } from '../../types/electionTypes';
 
 // Update this with your deployed factory address
 const FACTORY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
 
-type Candidate = {
-  id: number;
-  name: string;
-  image: string;
-};
-
-type Election = {
-  id: number;
-  title: string;
-  candidates: Candidate[];
-  address?: string; // Add blockchain address
-  ended?: boolean;   // Add ended status
-};
-
 export default function VotingPage() {
+  // State variables remain the same
+  const { provider, signer, account } = useWallet();
   const [elections, setElections] = useState<Election[]>([]);
   const [selectedElection, setSelectedElection] = useState<Election | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -31,98 +27,21 @@ export default function VotingPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Blockchain state
-  const [provider, setProvider] = useState<BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<any>(null);
-  const [contract, setContract] = useState<ethers.Contract | null>(null);
-  const [account, setAccount] = useState('');
   const [factoryContract, setFactoryContract] = useState<ethers.Contract | null>(null);
-  const [electionContracts, Elect] = useState<{[key: number]: ethers.Contract}>({});
-  
-  type Proposal = { name: string; votes: number };
+  const [electionContracts, setElectionContracts] = useState<{ [key: number]: ethers.Contract }>({});
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [voteStatus, setVoteStatus] = useState('');
   const [isOwner, setIsOwner] = useState(false);
+  const [voterMetrics, setVoterMetrics] = useState<{ [key: number]: { total: number, voted: number } }>({});
 
-  // Initialize mock elections (keep this for UI testing)
+  // All useEffect hooks remain the same
   useEffect(() => {
-    const fetchElections = async () => {
-      try {
-        // Keep your mock data for now
-        const data = [
-          {
-            id: 1,
-            title: 'Presidential Election',
-            candidates: [
-              { id: 1, name: 'Alice Johnson', image: '/candidate1.jpg' },
-              { id: 2, name: 'Bob Smith', image: '/candidate2.jpg' },
-              { id: 3, name: 'Alice Johnson', image: '/candidate1.jpg' },
-              { id: 4, name: 'Bob Smith', image: '/candidate2.jpg' },
-            ],
-          },
-          {
-            id: 2,
-            title: 'District Election',
-            candidates: [
-              { id: 1, name: 'Abdurrahman Johnson', image: '/candidate1.jpg' },
-              { id: 2, name: 'Youssef Smith', image: '/candidate2.jpg' },
-            ],
-          },
-        ];
-
-        // For now, keep using mock data but we'll supplement with blockchain data
-        setElections(data);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        // Don't set loading to false yet, wait for blockchain connection
-      }
-    };
-
-    fetchElections();
-  }, []);
-
-  // Initialize ethers provider
-  useEffect(() => {
-    if (window.ethereum) {
-      const newProvider = new BrowserProvider(window.ethereum);
-      setProvider(newProvider);
-    } else {
-      console.error('MetaMask not detected');
-      setLoading(false); // Stop loading if no MetaMask
-    }
-  }, []);
-
-  // Initialize signer
-  useEffect(() => {
-    if (!provider) return;
-
-    const setupSigner = async () => {
-      try {
-        await provider.send('eth_requestAccounts', []);
-        const newSigner = await provider.getSigner();
-        setSigner(newSigner);
-        const addr = await newSigner.getAddress();
-        setAccount(addr);
-      } catch (err) {
-        console.error("Error setting up signer:", err);
-        setLoading(false);
-      }
-    };
-
-    setupSigner();
-  }, [provider]);
-
-  // Initialize factory contract
-  useEffect(() => {
-    if (!signer) return;
+    if (!signer || !account) return;
 
     const initFactory = async () => {
       try {
         const factory = new ethers.Contract(FACTORY_ADDRESS, FactoryABI.abi, signer);
         setFactoryContract(factory);
-        
+
         // Check if user is factory owner
         const ownerAddr = await factory.owner();
         setIsOwner(ownerAddr.toLowerCase() === account.toLowerCase());
@@ -134,15 +53,15 @@ export default function VotingPage() {
     initFactory();
   }, [signer, account]);
 
-  // Fetch blockchain elections
+  // Fetch blockchain elections (keep as is)
   useEffect(() => {
-    if (!factoryContract) return;
+    if (!factoryContract || !signer || !account) return;
 
     const fetchBlockchainElections = async () => {
       try {
         // Get all election addresses
         const electionAddresses = await factoryContract.getAllElections();
-        
+
         if (electionAddresses.length === 0) {
           console.log("No elections found on blockchain");
           setLoading(false);
@@ -151,47 +70,77 @@ export default function VotingPage() {
 
         // Create array to store blockchain elections
         const blockchainElections: Election[] = [];
+        const newVoterMetrics: { [key: number]: { total: number, voted: number } } = {};
 
         // Loop through each election address
         for (let i = 0; i < electionAddresses.length; i++) {
           try {
             // Get election details
             const details = await factoryContract.getElectionDetails(i);
-            
+
             // Create election contract instance
             const electionContract = new ethers.Contract(
-              details.electionAddress, 
-              ElectionABI.abi, 
+              details.electionAddress,
+              ElectionABI.abi,
               signer
             );
 
             // Store contract reference for later use
-            Elect(prev => ({
+            setElectionContracts(prev => ({
               ...prev,
-              [i+1]: electionContract // Use 1-based indexing to match your mock data
+              [i + 1]: electionContract
             }));
 
-            // Get proposals
+            // Get proposals with votes
             const rawProposals = await electionContract.getAllProposals();
-            const candidates = rawProposals.map((p: any, index: number) => ({
-              id: index + 1,
-              name: p.name,
-              // image: '/candidate-placeholder.jpg' // Default image
-            }));
+            let totalVotes = 0;
+
+            const candidates = rawProposals.map((p: any, index: number) => {
+              totalVotes += Number(p.votes);
+              return {
+                id: index + 1,
+                name: p.name,
+                image: '/candidate-placeholder.jpg',
+                votes: Number(p.votes)
+              };
+            });
 
             // Check if user has voted
             const hasVoted = await electionContract.hasVoted(account);
-            if (hasVoted && !votedElectionIds.includes(i+1)) {
-              setVotedElectionIds(prev => [...prev, i+1]);
+            if (hasVoted && !votedElectionIds.includes(i + 1)) {
+              setVotedElectionIds(prev => [...prev, i + 1]);
             }
+
+            // Get voter metrics
+            const allowedVoters = details.allowedVoters || [];
+            const voterCount = allowedVoters.length;
+
+            // Count how many have voted
+            let votedCount = 0;
+            for (const voter of allowedVoters) {
+              try {
+                const hasVoted = await electionContract.hasVoted(voter);
+                if (hasVoted) votedCount++;
+              } catch (err) {
+                console.error(`Error checking if voter ${voter} has voted:`, err);
+              }
+            }
+
+            newVoterMetrics[i + 1] = {
+              total: voterCount,
+              voted: votedCount
+            };
 
             // Create election object
             const election: Election = {
-              id: i + 1, // Use 1-based indexing to match your mock data
+              id: i + 1,
               title: details.title,
               candidates: candidates,
               address: details.electionAddress,
-              ended: details.ended
+              ended: details.ended,
+              startTime: Number(details.startTime),
+              endTime: Number(details.endTime),
+              allowedVoters: details.allowedVoters
             };
 
             blockchainElections.push(election);
@@ -200,7 +149,10 @@ export default function VotingPage() {
           }
         }
 
-        // Replace mock elections with blockchain elections
+        // Set voter metrics
+        setVoterMetrics(newVoterMetrics);
+
+        // Replace elections with blockchain elections
         if (blockchainElections.length > 0) {
           setElections(blockchainElections);
         }
@@ -214,17 +166,17 @@ export default function VotingPage() {
     fetchBlockchainElections();
   }, [factoryContract, signer, account]);
 
-  // Update selected election's proposals
+  // Update selected election's proposals (keep as is)
   useEffect(() => {
     if (!selectedElection || !electionContracts[selectedElection.id]) return;
 
     const fetchProposals = async () => {
       try {
         const electionContract = electionContracts[selectedElection.id];
-        
+
         // Get all proposals
         const rawProposals = await electionContract.getAllProposals();
-        
+
         if (Array.isArray(rawProposals) && rawProposals.length > 0) {
           const formattedProposals = rawProposals.map((p: any) => ({
             name: p.name,
@@ -246,7 +198,7 @@ export default function VotingPage() {
     fetchProposals();
   }, [selectedElection, electionContracts]);
 
-  // Handle blockchain vote submission
+  // Handle blockchain vote submission (keep as is)
   const handleBlockchainVote = async () => {
     if (!selectedElection || !selectedCandidate || !electionContracts[selectedElection.id]) {
       setMessage('⚠️ Please select a candidate first.');
@@ -264,143 +216,309 @@ export default function VotingPage() {
 
     try {
       const electionContract = electionContracts[selectedElection.id];
-      console.log("Contract: ", selectedCandidate.name);
+
       // Submit vote transaction
       const tx = await electionContract.vote(selectedCandidate.name);
       await tx.wait();
-      console.log("TX: ", tx);
+
       // Update voted election IDs
       setVotedElectionIds([...votedElectionIds, selectedElection.id]);
       setMessage(`✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`);
-      
+
+      // Update voter metrics
+      setVoterMetrics(prev => {
+        const metrics = { ...prev };
+        if (metrics[selectedElection.id]) {
+          metrics[selectedElection.id].voted += 1;
+        }
+        return metrics;
+      });
+
       // Reset selection
       setSelectedElection(null);
       setSelectedCandidate(null);
     } catch (err: any) {
-      console.error("Error submitting vote:", err); 
+      console.error("Error submitting vote:", err);
       setMessage(`⚠️ Error: ${err.message || 'Failed to submit vote'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Override the original handleSubmit to use blockchain voting
-  const handleSubmit = () => {
-    // If we have a blockchain connection, use that
-    if (electionContracts[selectedElection?.id || 0]) {
-      handleBlockchainVote();
-    } else {
-      // Fallback to mock voting for testing
-      if (selectedElection && selectedCandidate) {
-        if (votedElectionIds.includes(selectedElection.id)) {
-          setMessage('You have already voted in this election.');
-          return;
-        }
+  // Wallet not connected UI (keep as is)
+  if (!provider || !signer || !account) {
+    return (
+      <>
+        <div className="voting-container">
+          <Navbar />
+          <h1 className="voting-title">🗳️ Ongoing Elections</h1>
 
-        setMessage(
-          `✅ You voted for ${selectedCandidate.name} in the ${selectedElection.title}.`
-        );
-        setVotedElectionIds([...votedElectionIds, selectedElection.id]);
-        setSelectedElection(null);
-        setSelectedCandidate(null);
-      } else {
-        setMessage('⚠️ Please select a candidate before submitting.');
-      }
-    }
-  };
+          <div className="wallet-connect-prompt">
+            <h2 style={{ color: 'white' }}>Connect Your Wallet</h2>
+            <p style={{ color: 'white' }}>Please connect your wallet using the button in the navigation bar to view and participate in elections.</p>
+            <div className="mt-4">
+              <Button
+                typeofButton="primary"
+                onClickButton={() => window.location.href = '/howItWorks'}
+              >
+                Learn How It Works
+              </Button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-  if (loading) return <div className="loading">Loading elections...</div>;
-  if (error) return <div className="error">{error}</div>;
+  if (loading) return (
+    <>
+      <Navbar />
+      <div className="loading">Loading elections...</div>
+    </>
+  );
+
+  if (error) return (
+    <>
+      <Navbar />
+      <div className="error">{error}</div>
+    </>
+  );
 
   return (
     <>
-      <div className="voting-container">
+      <Box
+        sx={{
+          background: "linear-gradient(135deg, #0f2027, #203a43, #2c5364)",
+          minHeight: '100vh',
+          color: '#fff',
+          px: { xs: 3, md: 8 },  // Add horizontal padding like home page
+          py: { xs: 6, md: 2 }   // Add vertical padding like home page
+        }}
+      >
         <Navbar />
-        <h1 className="voting-title">🗳️ Ongoing Elections</h1>
 
-        {!selectedElection ? (
-          <ul className="election-list">
-            {elections.map((election) => {
-              const alreadyVoted = votedElectionIds.includes(election.id);
-              return (
-                <li
-                  key={election.id}
-                  className={`election-item ${alreadyVoted ? 'election-voted' : 'election-active'
-                    }`}
-                  onClick={() => {
-                    if (!alreadyVoted) {
-                      setSelectedElection(election);
-                      setMessage('');
-                    }
+        <Container maxWidth="lg" sx={{ py: 6 }}>
+          <Typography
+            variant="h2"
+            component="h1"
+            sx={{
+              fontWeight: 'bold',
+              mb: 4,
+              textAlign: 'center'
+            }}
+          >
+            🗳️ Elections
+          </Typography>
+
+          {message && (
+            <Alert
+              severity={message.includes('✅') ? 'success' : message.includes('⚠️') ? 'warning' : 'info'}
+              sx={{
+                mb: 4,
+                borderRadius: 2,
+                '& .MuiAlert-message': { fontSize: '1rem' }
+              }}
+            >
+              {message}
+            </Alert>
+          )}
+
+          {!selectedElection ? (
+            // Elections list using flexbox instead of Grid
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 3,
+                justifyContent: 'center'
+              }}
+            >
+              {elections.map((election) => {
+                const alreadyVoted = votedElectionIds.includes(election.id);
+                const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
+
+                return (
+                  <Box
+                    key={election.id}
+                    sx={{
+                      width: {
+                        xs: '100%',
+                        sm: 'calc(50% - 24px)',
+                        lg: 'calc(33.33% - 24px)'
+                      },
+                      minWidth: {
+                        xs: '100%',
+                        sm: '280px',
+                        lg: '300px'
+                      },
+                      maxWidth: '500px',
+                      flex: '1 1 auto'
+                    }}
+                  >
+                    <ElectionCard
+                      election={election}
+                      alreadyVoted={alreadyVoted}
+                      onSelect={() => {
+                        if (!alreadyVoted) {
+                          setSelectedElection(election);
+                          setMessage('');
+                        }
+                      }}
+                      totalVoters={metrics.total}
+                      votedCount={metrics.voted}
+                    />
+                  </Box>
+                );
+              })}
+
+              {elections.length === 0 && (
+                <Box
+                  sx={{
+                    textAlign: 'center',
+                    py: 8,
+                    color: '#aaa',
+                    width: '100%'
                   }}
                 >
-                  <div className="election-title">{election.title}</div>
-                  {alreadyVoted && (
-                    <div className="election-note">You already voted</div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="space-y-6">
-            <div className="back-button">
-              <Button
-                typeofButton="info"
-                onClickButton={() => {
-                  setSelectedElection(null);
-                  setSelectedCandidate(null);
-                  setMessage('');
+                  <Typography variant="h5" gutterBottom>
+                    No elections found
+                  </Typography>
+                  <Typography variant="body1">
+                    There are no active elections available at this time.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box>
+              {/* Back button */}
+              <Box sx={{ mb: 4 }}>
+                <Button
+                  typeofButton="info"
+                  onClickButton={() => {
+                    setSelectedElection(null);
+                    setSelectedCandidate(null);
+                    setMessage('');
+                  }}
+                >
+                  ← Back to Elections
+                </Button>
+              </Box>
+
+              {/* Election title */}
+              <Typography
+                variant="h3"
+                component="h2"
+                sx={{
+                  fontWeight: 'bold',
+                  mb: 4,
+                  textAlign: 'center',
+                  color: '#fff'
                 }}
               >
-                ←
-              </Button>
-            </div>
+                {selectedElection.title}
+              </Typography>
 
-            <div>
-              <h2 className="candidates-heading">
-                Candidates for{' '}
-                <span className="text-blue-600">{selectedElection.title}</span>
-              </h2>
-            </div>
-
-            <ul className="candidates-container">
-              {selectedElection.candidates.map((candidate) => (
-                <li
-                  key={candidate.id}
-                  className={`candidate-card ${selectedCandidate?.id === candidate.id
-                    ? 'candidate-selected'
-                    : 'candidate-default'
-                    }`}
-                  onClick={() => setSelectedCandidate(candidate)}
-                >
-                  <img
-                    src={candidate.image || 'https://via.placeholder.com/150'}
-                    alt={candidate.name}
-                    className="candidate-image"
+              {/* If election has ended or user has voted, show results */}
+              {(selectedElection.ended || votedElectionIds.includes(selectedElection.id)) && (
+                <>
+                  {/* Vote count dashboard */}
+                  <VoteCountDashboard
+                    title={selectedElection.title}
+                    candidates={selectedElection.candidates}
+                    voteData={proposals}
+                    totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
                   />
-                  <div className="candidate-name">{candidate.name}</div>
-                </li>
-              ))}
-            </ul>
 
-            <div className="submit-button-wrapper">
-              <Button typeofButton="danger" onClickButton={handleSubmit}>
-                Submit Vote
-              </Button>
-            </div>
+                  {/* Voter participation metrics */}
+                  <VoterParticipationMetrics
+                    totalVoters={voterMetrics[selectedElection.id]?.total || 0}
+                    votedCount={voterMetrics[selectedElection.id]?.voted || 0}
+                    electionTitle={selectedElection.title}
+                  />
+                </>
+              )}
 
-            {message && (
-              <div
-                className={`message ${message.includes('✅') ? 'message-success' : 'message-warning'
-                  }`}
-              >
-                {message}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              {/* Candidates section */}
+              <Box sx={{ mb: 6 }}>
+                <Typography
+                  variant="h5"
+                  component="h3"
+                  sx={{
+                    fontWeight: 'bold',
+                    mb: 3,
+                    textAlign: 'center',
+                    color: selectedElection.ended ? '#aaa' : '#fff',
+                  }}
+                >
+                  {selectedElection.ended ? 'Final Results' : votedElectionIds.includes(selectedElection.id) ? 'Current Results' : 'Select a Candidate'}
+                </Typography>
+
+                {/* Candidates using flexbox instead of Grid */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 3,
+                    justifyContent: 'center'
+                  }}
+                >
+                  {selectedElection.candidates.map((candidate) => {
+                    const candidateVotes = proposals.find(p => p.name === candidate.name)?.votes || 0;
+                    const totalVotes = proposals.reduce((sum, p) => sum + p.votes, 0);
+
+                    return (
+                      <Box
+                        key={candidate.id}
+                        sx={{
+                          width: {
+                            xs: '100%',
+                            sm: 'calc(50% - 24px)',
+                            md: 'calc(33.33% - 24px)'
+                          },
+                          minWidth: {
+                            xs: '100%',
+                            sm: '250px',
+                            md: '250px'
+                          },
+                          maxWidth: '400px',
+                          flex: '1 1 auto',
+                          display: 'flex'
+                        }}
+                      >
+                        <CandidateCard
+                          candidate={candidate}
+                          isSelected={selectedCandidate?.id === candidate.id}
+                          onSelect={() => {
+                            if (!selectedElection.ended && !votedElectionIds.includes(selectedElection.id)) {
+                              setSelectedCandidate(candidate);
+                            }
+                          }}
+                          voteCount={candidateVotes}
+                          totalVotes={totalVotes}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+
+              {/* Submit button */}
+              {!selectedElection.ended && !votedElectionIds.includes(selectedElection.id) && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 6 }}>
+                  <Button
+                    typeofButton="danger"
+                    onClickButton={handleBlockchainVote}
+                  // disabled={!selectedCandidate}
+                  >
+                    {loading ? 'Processing...' : 'Submit Vote'}
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Container>
+      </Box>
     </>
   );
 }

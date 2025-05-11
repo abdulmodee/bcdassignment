@@ -4,13 +4,34 @@ import { formatAddress } from "../utils";
 import { Button, Box, Menu, MenuItem, Avatar, Typography } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import { BrowserProvider, ethers } from 'ethers';
+import { useWallet } from "./WalletProvider";
 
 export const DiscoverWalletProviders = () => {
-  const [selectedWallet, setSelectedWallet] = useState<EIP6963ProviderDetail>();
-  const [userAccount, setUserAccount] = useState<string>("");
+  // Use the wallet context directly
+  const {
+    account,
+    setAccount,
+    setProvider,
+    setSigner,
+    walletName,
+    disconnectWallet
+  } = useWallet();
+
+  const [selectedWallet, setSelectedWallet] = useState<EIP6963ProviderDetail | null>(null);
   const providers = useSyncProviders();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+
+  // Set selected wallet from persisted wallet name if available
+  useEffect(() => {
+    if (walletName && providers.length > 0 && !selectedWallet) {
+      const matchingWallet = providers.find(p => p.info.name === walletName);
+      if (matchingWallet) {
+        setSelectedWallet(matchingWallet);
+      }
+    }
+  }, [providers, walletName, selectedWallet]);
 
   // Handle dropdown open
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -30,13 +51,25 @@ export const DiscoverWalletProviders = () => {
   // Connect to selected wallet
   const handleConnect = async (providerWithInfo: EIP6963ProviderDetail) => {
     try {
-      const accounts: string[] | undefined = (await providerWithInfo.provider
+      const ethereumProvider = providerWithInfo.provider;
+
+      const accounts: string[] | undefined = (await ethereumProvider
         .request({ method: "eth_requestAccounts" })
         .catch(console.error)) as string[] | undefined;
 
       if (accounts?.[0]) {
         setSelectedWallet(providerWithInfo);
-        setUserAccount(accounts[0]);
+
+        // Create ethers provider and signer
+        const ethersProvider = new BrowserProvider(ethereumProvider);
+        setProvider(ethersProvider);
+
+        const ethersSigner = await ethersProvider.getSigner();
+        setSigner(ethersSigner);
+
+        // Set the account address and wallet name
+        setAccount(accounts[0]);
+
         handleClose();
       }
     } catch (error) {
@@ -46,8 +79,9 @@ export const DiscoverWalletProviders = () => {
 
   // Disconnect wallet
   const handleDisconnect = () => {
-    setSelectedWallet(undefined);
-    setUserAccount("");
+    disconnectWallet();
+    setSelectedWallet(null);
+    handleClose();
   };
 
   return (
@@ -56,7 +90,7 @@ export const DiscoverWalletProviders = () => {
         // Dropdown for wallet selection
         <Box>
           <Button
-            onClick={userAccount ? handleClick : handleClick}
+            onClick={handleClick}
             sx={{
               color: '#fff',
               textTransform: 'none',
@@ -66,24 +100,24 @@ export const DiscoverWalletProviders = () => {
               display: 'flex',
               alignItems: 'center',
               gap: 1,
-              backgroundColor: userAccount ? 'rgba(46, 196, 182, 0.1)' : 'transparent',
+              backgroundColor: account ? 'rgba(46, 196, 182, 0.1)' : 'transparent',
               '&:hover': {
-                backgroundColor: userAccount ? 'rgba(46, 196, 182, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: account ? 'rgba(46, 196, 182, 0.2)' : 'rgba(255, 255, 255, 0.1)',
                 boxShadow: '0 2px 10px rgba(255,255,255,0.1)',
               },
             }}
             endIcon={<ArrowDropDownIcon />}
           >
-            {userAccount ? (
+            {account ? (
               <>
                 {selectedWallet && (
-                  <Avatar 
-                    src={selectedWallet.info.icon} 
-                    alt={selectedWallet.info.name} 
+                  <Avatar
+                    src={selectedWallet.info.icon}
+                    alt={selectedWallet.info.name}
                     sx={{ width: 20, height: 20, mr: 1 }}
                   />
                 )}
-                {formatAddress(userAccount)}
+                {formatAddress(account)}
               </>
             ) : (
               <>
@@ -112,7 +146,7 @@ export const DiscoverWalletProviders = () => {
               }
             }}
           >
-            {userAccount ? (
+            {account ? (
               // If wallet connected - show disconnect option
               <MenuItem onClick={handleDisconnect} sx={{ minWidth: 200 }}>
                 <Typography sx={{ color: '#f44336' }}>Disconnect Wallet</Typography>
@@ -120,12 +154,12 @@ export const DiscoverWalletProviders = () => {
             ) : (
               // Show available wallets
               providers.map((provider: EIP6963ProviderDetail) => (
-                <MenuItem 
-                  key={provider.info.uuid} 
+                <MenuItem
+                  key={provider.info.uuid}
                   onClick={() => handleConnect(provider)}
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: 1.5,
                     py: 1.5,
                     minWidth: 200

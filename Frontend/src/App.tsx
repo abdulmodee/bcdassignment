@@ -6,18 +6,24 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import VotingPage from "./app/votingPage/page";
 import { DiscoverWalletProviders } from "./components/DiscoverWalletProviders";
 import CreateElectionPage from "./app/createElection/page";
+import { WalletProvider } from "./components/WalletProvider";
+import HowItWorks from "./app/howItWorks/page";
 
 function App() {
   return (
     <>
       <CssBaseline />
-      <Router>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/votingPage" element={<VotingPage />} />
-          <Route path="/createElection" element={<CreateElectionPage />} />
-        </Routes>
-      </Router>
+      <WalletProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/votingPage" element={<VotingPage />} />
+            <Route path="/createElection" element={<CreateElectionPage />} />
+            <Route path="/howItWorks" element={<HowItWorks />} />
+          </Routes>
+        </Router>
+      </WalletProvider>
+
     </>
   );
 }
