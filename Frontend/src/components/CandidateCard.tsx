@@ -51,20 +51,29 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             elevation={isSelected ? 6 : 2}
             sx={{
                 p: 3,
-                borderRadius: 4,
-                backgroundColor: isSelected ? 'rgba(0, 200, 150, 0.1)' : '#1f1f1f',
-                border: isSelected ? '2px solid #00c896' : '2px solid transparent',
-                transition: 'all 0.3s ease',
+                borderRadius: 2.5, // Slightly less rounded corners for a cleaner look
+                backgroundColor: isSelected ? 'rgba(0, 200, 150, 0.08)' : '#1a1a1a', // Slightly darker for contrast
+                borderBottom: isSelected ? '3px solid #00c896' : '3px solid transparent',
+                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                borderLeft: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRight: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s ease',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 textAlign: 'center',
-                mb: 2,
                 height: '100%',
+                transform: isSelected ? 'translateY(-4px)' : 'none',
+                boxShadow: isSelected
+                    ? '0 6px 20px rgba(0, 0, 0, 0.25), 0 3px 6px rgba(0, 200, 150, 0.2)'
+                    : '0 2px 8px rgba(0, 0, 0, 0.15)',
                 '&:hover': {
-                    transform: 'scale(1.03)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                    transform: isSelected ? 'translateY(-4px)' : 'translateY(-2px)',
+                    boxShadow: isSelected
+                        ? '0 6px 20px rgba(0, 0, 0, 0.25), 0 3px 6px rgba(0, 200, 150, 0.2)'
+                        : '0 4px 12px rgba(0, 0, 0, 0.2)',
+                    borderBottom: isSelected ? '3px solid #00c896' : '3px solid rgba(255, 255, 255, 0.1)',
                 },
             }}
             onClick={onSelect}
@@ -74,19 +83,19 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                 src={candidate.image}
                 alt={candidate.name}
                 sx={{
-                    width: 110,
-                    height: 110,
-                    mb: 2,
-                    fontSize: '2.25rem',
+                    width: 90, // Slightly smaller for better proportions
+                    height: 90,
+                    my: 1, // More consistent vertical spacing
+                    fontSize: '1.8rem',
                     fontWeight: 'bold',
                     backgroundColor: getAvatarColor(candidate.name),
                     border: isSelected
-                        ? '4px solid #00c896'
-                        : '4px solid rgba(255,255,255,0.1)',
+                        ? '3px solid #00c896'
+                        : '3px solid rgba(255,255,255,0.08)',
                     boxShadow: isSelected
-                        ? '0 0 12px rgba(0, 200, 150, 0.5)'
+                        ? '0 0 12px rgba(0, 200, 150, 0.4)'
                         : 'none',
-                    transition: 'all 0.3s ease',
+                    transition: 'all 0.2s ease',
                 }}
             >
                 {getInitials(candidate.name)}
@@ -98,56 +107,15 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                 component="h3"
                 fontWeight="medium"
                 sx={{
-                    mb: 1,
-                    color: '#fff',
-                    transition: 'color 0.3s ease',
+                    mt: 2,
+                    color: isSelected ? '#00c896' : '#fff',
+                    transition: 'color 0.2s ease',
+                    fontSize: '1.1rem', // Slightly smaller for better proportions
+                    lineHeight: 1.3,
                 }}
             >
                 {candidate.name}
             </Typography>
-
-            {/* Vote Count */}
-            {totalVotes > 0 && (
-                <Box sx={{ width: '100%', mt: 1 }}>
-                    <Typography
-                        variant="body2"
-                        sx={{
-                            color: isSelected ? '#00c896' : '#aaa',
-                            transition: 'color 0.3s ease',
-                            fontWeight: isSelected ? 'bold' : 'regular',
-                            fontSize: '0.9rem',
-                        }}
-                    >
-                        {voteCount} vote{voteCount !== 1 ? 's' : ''} ({votePercentage.toFixed(1)}%)
-                    </Typography>
-
-                    {/* Vote bar */}
-                    <Box
-                        sx={{
-                            height: 6,
-                            width: '100%',
-                            backgroundColor: 'rgba(255,255,255,0.1)',
-                            borderRadius: 3,
-                            mt: 1,
-                            position: 'relative',
-                            overflow: 'hidden'
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                height: '100%',
-                                width: `${votePercentage}%`,
-                                backgroundColor: isSelected ? '#00c896' : '#4dabf5',
-                                borderRadius: 3,
-                                transition: 'width 1s ease-out, background-color 0.3s ease'
-                            }}
-                        />
-                    </Box>
-                </Box>
-            )}
         </Paper>
     );
 };

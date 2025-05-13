@@ -24,7 +24,7 @@ const VoteCountDashboard: React.FC<VoteCountDashboardProps> = ({
 
     // Colors for chart
     const COLORS = ['#00C49F', '#0088FE', '#FFBB28', '#FF8042', '#a4de6c', '#d0ed57', '#83a6ed', '#8884d8'];
-
+    
     // Animate counters on load
     useEffect(() => {
         const interval = setInterval(() => {

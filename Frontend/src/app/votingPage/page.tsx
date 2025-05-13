@@ -11,7 +11,6 @@ import { useWallet } from '../../components/WalletProvider';
 import ElectionCard from '../../components/ElectionCard';
 import CandidateCard from '../../components/CandidateCard';
 import VoteCountDashboard from '../../components/VoteCountDashboard';
-import VoterParticipationMetrics from '../../components/VoterParticipationMetrics';
 import { Election, Candidate, Proposal } from '../../types/electionTypes';
 
 // Update this with your deployed factory address
@@ -255,6 +254,12 @@ export default function VotingPage() {
     return election.ended || (election.endTime && now > election.endTime);
   };
 
+  const isElectionStarted = (election: any) => {
+    const now = Math.floor(Date.now() / 1000);
+    // Election is started if the current time is past the election's start time
+    return election.startTime && now >= election.startTime;
+  };
+
   // Wallet not connected UI (keep as is)
   if (!provider || !signer || !account) {
     return (
@@ -320,174 +325,453 @@ export default function VotingPage() {
             🗳️ Elections
           </Typography>
 
-          {message && (
-            <Alert
-              severity={message.includes('✅') ? 'success' : message.includes('⚠️') ? 'warning' : 'info'}
-              sx={{
-                mb: 4,
-                borderRadius: 2,
-                '& .MuiAlert-message': { fontSize: '1rem' }
-              }}
-            >
-              {message}
-            </Alert>
-          )}
+
 
           {!selectedElection ? (
-            // Elections list using flexbox
-            <Box
-              sx={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 3,
-                justifyContent: 'center'
-              }}
-            >
+            // Elections list with sections
+            <Box sx={{ width: '100%' }}>
+              {/* Message display */}
+              {message && (
+                <Alert
+                  severity={message.includes('⚠️') ? 'warning' : message.includes('✅') ? 'success' : 'info'}
+                  sx={{
+                    mb: 4,
+                    borderRadius: 2,
+                    backgroundColor: message.includes('⚠️') ? 'rgba(255, 152, 0, 0.1)' :
+                      message.includes('✅') ? 'rgba(76, 175, 80, 0.1)' : 'rgba(33, 150, 243, 0.1)',
+                    color: message.includes('⚠️') ? '#ff9800' :
+                      message.includes('✅') ? '#4caf50' : '#2196f3',
+                  }}
+                  onClose={() => setMessage('')}
+                >
+                  {message}
+                </Alert>
+              )}
 
+              {/* Filter elections by status */}
+              {(() => {
+                // Filter elections into categories
+                const activeElections = elections.filter(election =>
+                  isElectionStarted(election) && !isElectionFinished(election)
+                );
 
-              {elections.map((election) => {
-                const alreadyVoted = votedElectionIds.includes(election.id);
-                const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
-                const electionFinished = isElectionFinished(election);
+                const upcomingElections = elections.filter(election =>
+                  !isElectionStarted(election)
+                );
+
+                const endedElections = elections.filter(election =>
+                  isElectionFinished(election)
+                );
 
                 return (
-                  <Box
-                    key={election.id}
-                    sx={{
-                      width: {
-                        xs: '100%',
-                        sm: 'calc(50% - 24px)',
-                        lg: 'calc(33.33% - 24px)'
-                      },
-                      minWidth: {
-                        xs: '100%',
-                        sm: '280px',
-                        lg: '300px'
-                      },
-                      maxWidth: '500px',
-                      flex: '1 1 auto'
-                    }}
-                  >
-                    <ElectionCard
-                      election={{ ...election, ended: electionFinished }}
-                      alreadyVoted={alreadyVoted}
-                      onSelect={() => {
-                        // Only allow selection if not finished and not already voted
-                        if (!electionFinished && !alreadyVoted) {
-                          setSelectedElection(election);
-                          setMessage('');
-                        }
-                      }}
-                      onViewDetails={() => {
-                        // When "View Details" is clicked on an ended election
-                        setViewingElectionDetails(election);
-                        // Load proposals for this election
-                        if (electionContracts[election.id]) {
-                          const fetchProposals = async () => {
-                            try {
-                              const electionContract = electionContracts[election.id];
-                              const rawProposals = await electionContract.getAllProposals();
-
-                              if (Array.isArray(rawProposals) && rawProposals.length > 0) {
-                                const formattedProposals = rawProposals.map((p: any) => ({
-                                  name: p.name,
-                                  votes: Number(p.votes)
-                                }));
-                                setProposals(formattedProposals);
-                              } else {
-                                setProposals([]);
-                              }
-                            } catch (err) {
-                              console.error("Error fetching proposals:", err);
-                              setProposals([]);
-                            }
-                          };
-                          fetchProposals();
-                        }
-                      }}
-                      totalVoters={metrics.total}
-                      votedCount={metrics.voted}
-                    />
-                  </Box>
-                );
-              })}
-
-              {elections.length === 0 && (
-                <Box
-                  sx={{
-                    textAlign: 'center',
-                    py: 8,
-                    color: '#aaa',
-                    width: '100%'
-                  }}
-                >
-                  <Typography variant="h5" gutterBottom>
-                    No elections found
-                  </Typography>
-                  <Typography variant="body1">
-                    There are no active elections available at this time.
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Election Results Dashboard - shown when an ended election's details are viewed */}
-              {viewingElectionDetails && (
-                <Box sx={{ width: '100%', mb: 6 }}>
-                  <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography
-                      variant="h4"
-                      component="h2"
-                      sx={{
-                        fontWeight: 'bold',
-                        color: '#fff'
-                      }}
-                    >
-                      {viewingElectionDetails.title} Results
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      onClick={() => setViewingElectionDetails(null)}
-                      sx={{
-                        color: "#aaa",
-                        borderColor: "#333",
-                        "&:hover": {
-                          borderColor: "#aaa",
-                          backgroundColor: "rgba(255, 255, 255, 0.05)",
-                        },
-                      }}
-                    >
-                      Close Results
-                    </Button>
-                  </Box>
-
-                  {/* Vote count dashboard */}
-                  {proposals.length > 0 ? (
-                    <>
-                      <VoteCountDashboard
-                        title={viewingElectionDetails.title}
-                        candidates={viewingElectionDetails.candidates}
-                        voteData={proposals.filter(p =>
-                          viewingElectionDetails.candidates.some(c => c.name === p.name)
-                        )}
-                        totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
-                      />
-
-                      {/* Voter participation metrics */}
-                      <VoterParticipationMetrics
-                        totalVoters={voterMetrics[viewingElectionDetails.id]?.total || 0}
-                        votedCount={voterMetrics[viewingElectionDetails.id]?.voted || 0}
-                        electionTitle={viewingElectionDetails.title}
-                      />
-                    </>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 2 }}>
-                      <Typography variant="body1" color="#aaa">
-                        Loading election results...
+                  <>
+                    {/* 1. ACTIVE ELECTIONS SECTION */}
+                    <Box sx={{ mb: 5 }}>
+                      <Typography
+                        variant="h4"
+                        component="h2"
+                        sx={{
+                          fontWeight: 'bold',
+                          mb: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: '#00c896'
+                        }}
+                      >
+                        {/* <Box component="span" sx={{
+                          backgroundColor: 'rgba(0, 200, 150, 0.1)',
+                          borderRadius: '50%',
+                          width: 40,
+                          height: 40,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          mr: 1.5
+                        }}>
+                          🔴
+                        </Box> */}
+                        Active Elections
                       </Typography>
+
+                      {activeElections.length > 0 ? (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 3,
+                            justifyContent: 'flex-start',
+                            mt: 3
+                          }}
+                        >
+                          {activeElections.map((election) => {
+                            const alreadyVoted = votedElectionIds.includes(election.id);
+                            const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
+                            const electionFinished = isElectionFinished(election);
+
+                            return (
+                              <Box
+                                key={election.id}
+                                sx={{
+                                  width: { xs: '100%', sm: 'calc(50% - 24px)', lg: 'calc(33.33% - 24px)' },
+                                  minWidth: { xs: '100%', sm: '280px', lg: '300px' },
+                                  maxWidth: '500px',
+                                }}
+                              >
+                                <ElectionCard
+                                  election={{ ...election, ended: electionFinished }}
+                                  alreadyVoted={alreadyVoted}
+                                  onSelect={() => {
+                                    if (isElectionStarted(election) && !electionFinished && !alreadyVoted) {
+                                      setSelectedElection(election);
+                                      setMessage('');
+                                    }
+                                  }}
+                                  onViewDetails={() => {
+                                    setViewingElectionDetails(election);
+                                    if (electionContracts[election.id]) {
+                                      const fetchProposals = async () => {
+                                        try {
+                                          const electionContract = electionContracts[election.id];
+                                          const rawProposals = await electionContract.getAllProposals();
+                                          if (Array.isArray(rawProposals) && rawProposals.length > 0) {
+                                            const formattedProposals = rawProposals.map((p: any) => ({
+                                              name: p.name,
+                                              votes: Number(p.votes)
+                                            }));
+                                            setProposals(formattedProposals);
+                                          } else {
+                                            setProposals([]);
+                                          }
+                                        } catch (err) {
+                                          console.error("Error fetching proposals:", err);
+                                          setProposals([]);
+                                        }
+                                      };
+                                      fetchProposals();
+                                    }
+                                  }}
+                                  totalVoters={metrics.total}
+                                  votedCount={metrics.voted}
+                                  notStarted={!isElectionStarted(election)}
+                                />
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      ) : (
+                        <Box
+                          sx={{
+                            p: 3,
+                            textAlign: 'center',
+                            backgroundColor: 'rgba(0,0,0,0.2)',
+                            borderRadius: 2,
+                            mt: 2
+                          }}
+                        >
+                          <Typography variant="body1" color="#aaa">
+                            No active elections at this time.
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
-                  )}
-                </Box>
-              )}
+
+                    {/* Divider after active elections */}
+                    {(activeElections.length > 0 && (upcomingElections.length > 0 || endedElections.length > 0)) && (
+                      <Box
+                        sx={{
+                          my: 5,
+                          height: '1px',
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                          width: '100%'
+                        }}
+                      />
+                    )}
+
+                    {/* 2. UPCOMING ELECTIONS SECTION */}
+                    {upcomingElections.length > 0 && (
+                      <Box sx={{ mb: 5 }}>
+                        <Typography
+                          variant="h4"
+                          component="h2"
+                          sx={{
+                            fontWeight: 'bold',
+                            mb: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: '#2196f3'
+                          }}
+                        >
+                          {/* <Box component="span" sx={{
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            borderRadius: '50%',
+                            width: 40,
+                            height: 40,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mr: 1.5
+                          }}>
+                            🔵
+                          </Box> */}
+                          Upcoming Elections
+                        </Typography>
+
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 3,
+                            justifyContent: 'flex-start',
+                            mt: 3
+                          }}
+                        >
+                          {upcomingElections.map((election) => {
+                            const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
+
+                            return (
+                              <Box
+                                key={election.id}
+                                sx={{
+                                  width: { xs: '100%', sm: 'calc(50% - 24px)', lg: 'calc(33.33% - 24px)' },
+                                  minWidth: { xs: '100%', sm: '280px', lg: '300px' },
+                                  maxWidth: '500px',
+                                }}
+                              >
+                                <ElectionCard
+                                  election={election}
+                                  alreadyVoted={false}
+                                  onSelect={() => {
+                                    const startTimeMessage = election.startTime
+                                      ? `Starts on ${new Date(election.startTime * 1000).toLocaleString()}`
+                                      : "Start time not available";
+                                    setMessage(`⚠️ Election "${election.title}" hasn't started yet. ${startTimeMessage}`);
+                                  }}
+                                  onViewDetails={() => {
+                                    setMessage(`⚠️ Results will be available when election "${election.title}" begins.`);
+                                  }}
+                                  totalVoters={metrics.total}
+                                  votedCount={0}
+                                  notStarted={true}
+                                />
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Divider after upcoming elections */}
+                    {(upcomingElections.length > 0 && endedElections.length > 0) && (
+                      <Box
+                        sx={{
+                          my: 5,
+                          height: '1px',
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                          width: '100%'
+                        }}
+                      />
+                    )}
+
+                    {/* 3. ENDED ELECTIONS SECTION */}
+                    {endedElections.length > 0 && (
+                      <Box sx={{ mb: 5 }}>
+                        <Typography
+                          variant="h4"
+                          component="h2"
+                          sx={{
+                            fontWeight: 'bold',
+                            mb: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: '#9e9e9e'
+                          }}
+                        >
+                          {/* <Box component="span" sx={{
+                            backgroundColor: 'rgba(158, 158, 158, 0.1)',
+                            borderRadius: '50%',
+                            width: 40,
+                            height: 40,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mr: 1.5
+                          }}>
+                            ⚫
+                          </Box> */}
+                          Ended Elections
+                        </Typography>
+
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 3,
+                            justifyContent: 'flex-start',
+                            mt: 3
+                          }}
+                        >
+                          {endedElections.map((election) => {
+                            const alreadyVoted = votedElectionIds.includes(election.id);
+                            const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
+
+                            return (
+                              <Box
+                                key={election.id}
+                                sx={{
+                                  width: { xs: '100%', sm: 'calc(50% - 24px)', lg: 'calc(33.33% - 24px)' },
+                                  minWidth: { xs: '100%', sm: '280px', lg: '300px' },
+                                  maxWidth: '500px',
+                                }}
+                              >
+                                <ElectionCard
+                                  election={{ ...election, ended: true }}
+                                  alreadyVoted={alreadyVoted}
+                                  onSelect={() => {
+                                    setViewingElectionDetails(election);
+                                    if (electionContracts[election.id]) {
+                                      const fetchProposals = async () => {
+                                        try {
+                                          const electionContract = electionContracts[election.id];
+                                          const rawProposals = await electionContract.getAllProposals();
+                                          if (Array.isArray(rawProposals) && rawProposals.length > 0) {
+                                            const formattedProposals = rawProposals.map((p: any) => ({
+                                              name: p.name,
+                                              votes: Number(p.votes)
+                                            }));
+                                            setProposals(formattedProposals);
+                                          } else {
+                                            setProposals([]);
+                                          }
+                                        } catch (err) {
+                                          console.error("Error fetching proposals:", err);
+                                          setProposals([]);
+                                        }
+                                      };
+                                      fetchProposals();
+                                    }
+                                  }}
+                                  onViewDetails={() => {
+                                    setViewingElectionDetails(election);
+                                    if (electionContracts[election.id]) {
+                                      const fetchProposals = async () => {
+                                        try {
+                                          const electionContract = electionContracts[election.id];
+                                          const rawProposals = await electionContract.getAllProposals();
+                                          if (Array.isArray(rawProposals) && rawProposals.length > 0) {
+                                            const formattedProposals = rawProposals.map((p: any) => ({
+                                              name: p.name,
+                                              votes: Number(p.votes)
+                                            }));
+                                            setProposals(formattedProposals);
+                                          } else {
+                                            setProposals([]);
+                                          }
+                                        } catch (err) {
+                                          console.error("Error fetching proposals:", err);
+                                          setProposals([]);
+                                        }
+                                      };
+                                      fetchProposals();
+                                    }
+                                  }}
+                                  totalVoters={metrics.total}
+                                  votedCount={metrics.voted}
+                                  notStarted={false}
+                                />
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Show empty state if no elections at all */}
+                    {elections.length === 0 && (
+                      <Box
+                        sx={{
+                          textAlign: 'center',
+                          py: 8,
+                          color: '#aaa',
+                          width: '100%',
+                          backgroundColor: 'rgba(0,0,0,0.2)',
+                          borderRadius: 4,
+                          mt: 4
+                        }}
+                      >
+                        <Typography variant="h5" gutterBottom>
+                          No elections found
+                        </Typography>
+                        <Typography variant="body1">
+                          There are no elections available at this time.
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Election Results Dashboard - shown when an ended election's details are viewed */}
+                    {viewingElectionDetails && (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          mt: 6,
+                          mb: 6,
+                          backgroundColor: 'rgba(0,0,0,0.2)',
+                          borderRadius: 3,
+                          p: 4,
+                          border: '1px solid rgba(255,255,255,0.05)'
+                        }}
+                      >
+                        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography
+                            variant="h4"
+                            component="h2"
+                            sx={{
+                              fontWeight: 'bold',
+                              color: '#fff'
+                            }}
+                          >
+                            {viewingElectionDetails.title} Results
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            onClick={() => setViewingElectionDetails(null)}
+                            sx={{
+                              color: "#aaa",
+                              borderColor: "#333",
+                              "&:hover": {
+                                borderColor: "#aaa",
+                                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                              },
+                            }}
+                          >
+                            Close Results
+                          </Button>
+                        </Box>
+
+                        {/* Vote count dashboard */}
+                        {proposals.length > 0 ? (
+                          <>
+                            <VoteCountDashboard
+                              title={viewingElectionDetails.title}
+                              candidates={viewingElectionDetails.candidates}
+                              voteData={proposals.filter(p =>
+                                viewingElectionDetails.candidates.some(c => c.name === p.name)
+                              )}
+                              totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
+                            />
+                          </>
+                        ) : (
+                          <Box sx={{ textAlign: 'center', py: 4, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 2 }}>
+                            <Typography variant="body1" color="#aaa">
+                              Loading election results...
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+
             </Box>
           ) : (
             <Box>
@@ -533,12 +817,7 @@ export default function VotingPage() {
                         totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
                       />
 
-                      {/* Voter participation metrics */}
-                      <VoterParticipationMetrics
-                        totalVoters={voterMetrics[selectedElection.id]?.total || 0}
-                        votedCount={voterMetrics[selectedElection.id]?.voted || 0}
-                        electionTitle={selectedElection.title}
-                      />
+
                     </>
                   ) : (
                     <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -562,8 +841,7 @@ export default function VotingPage() {
                     color: isElectionFinished(selectedElection) ? '#aaa' : '#fff',
                   }}
                 >
-                  {isElectionFinished(selectedElection) ? 'Final Results' :
-                    votedElectionIds.includes(selectedElection.id) ? 'Current Results' : 'Select a Candidate'}
+                  Select a Candidate
                 </Typography>
 
                 {/* Candidates using flexbox instead of Grid */}
@@ -583,19 +861,13 @@ export default function VotingPage() {
                       <Box
                         key={candidate.id}
                         sx={{
-                          width: {
-                            xs: '100%',
-                            sm: 'calc(50% - 24px)',
-                            md: 'calc(33.33% - 24px)'
-                          },
-                          minWidth: {
-                            xs: '100%',
-                            sm: '250px',
-                            md: '250px'
-                          },
-                          maxWidth: '400px',
-                          flex: '1 1 auto',
-                          display: 'flex'
+                          display: 'grid',
+                          gridTemplateRows: 'repeat(1, 1fr)',
+                          gap: '16px',                        // Consistent, moderate gap between items
+                          width: '100%',
+                          maxWidth: '1200px',                 // Limit maximum width
+                          mx: 'auto',                         // Center the grid
+                          px: { xs: 2, sm: 3 },               // Consistent padding
                         }}
                       >
                         <CandidateCard

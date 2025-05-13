@@ -12,6 +12,7 @@ interface ElectionCardProps {
     onViewDetails: () => void; // New prop for viewing details
     totalVoters: number;
     votedCount: number;
+    notStarted?: boolean; // New prop to indicate if election hasn't started yet
 }
 
 const ElectionCard: React.FC<ElectionCardProps> = ({
@@ -20,7 +21,8 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
     onSelect,
     onViewDetails, // New prop
     totalVoters,
-    votedCount
+    votedCount,
+    notStarted = false // Default to false
 }) => {
     // Calculate time remaining
     const now = Math.floor(Date.now() / 1000);
@@ -54,7 +56,7 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
     // Format time remaining
     const formatTimeRemaining = () => {
         if (status === 'ended') return 'Voting closed';
-        if (status === 'upcoming') return 'Starts soon';
+        if (status === 'upcoming') return `Starts ${new Date(startTime * 1000).toLocaleString()}`;
 
         const hours = Math.floor(timeRemaining / 3600);
         const minutes = Math.floor((timeRemaining % 3600) / 60);
@@ -92,7 +94,7 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                 borderRadius: 4,
                 backgroundColor: '#1f1f1f',
                 transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: isEnded || alreadyVoted ? 'default' : 'pointer',
+                cursor: isEnded || alreadyVoted || notStarted ? 'default' : 'pointer',
                 position: 'relative',
                 overflow: 'hidden',
                 mb: 3,
@@ -100,10 +102,10 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                     transform: isEnded || alreadyVoted ? 'none' : 'translateY(-4px)',
                     boxShadow: isEnded || alreadyVoted ? 3 : '0 8px 24px rgba(0,0,0,0.15)',
                 },
-                opacity: isEnded || alreadyVoted ? 0.9 : 1,
+                opacity: isEnded || alreadyVoted || notStarted ? 0.9 : 1,
                 border: isEnded || alreadyVoted ? '1px solid rgba(255,255,255,0.1)' : 'none',
             }}
-            onClick={() => !isEnded && !alreadyVoted && onSelect()}
+            onClick={() => !isEnded && !alreadyVoted && !notStarted && onSelect()}
         >
             {/* Status indicator */}
             <Box
@@ -115,10 +117,10 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                 }}
             >
                 <Chip
-                    label={statusLabels[status]}
+                    label={notStarted ? "Not Started" : statusLabels[status]}
                     sx={{
-                        backgroundColor: `${statusColors[status]}20`,
-                        color: statusColors[status],
+                        backgroundColor: notStarted ? 'rgba(33, 150, 243, 0.2)' : `${statusColors[status]}20`,
+                        color: notStarted ? '#2196f3' : statusColors[status],
                         fontWeight: 'bold',
                     }}
                 />
@@ -230,6 +232,23 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                     View Results
                 </Button>
             )}
+
+            {/* Add countdown to start if not started
+            {notStarted && (
+                <Typography
+                    variant="body2"
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        color: '#2196f3',
+                        mt: 2
+                    }}
+                >
+                    <AccessTimeIcon fontSize="small" />
+                    Starts: {new Date(startTime * 1000).toLocaleString()}
+                </Typography>
+            )} */}
         </Paper>
     );
 };

@@ -7,7 +7,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { Election, Proposal } from '../types/electionTypes';
 import VoteCountDashboard from './VoteCountDashboard';
-import VoterParticipationMetrics from './VoterParticipationMetrics';
 
 interface HostCardProps {
     election: Election;
@@ -256,13 +255,7 @@ const HostCard: React.FC<HostCardProps> = ({
                                 totalVotes={totalVotes}
                             />
 
-                            <Box sx={{ mt: 3 }}>
-                                <VoterParticipationMetrics
-                                    totalVoters={voterMetrics.total}
-                                    votedCount={voterMetrics.voted}
-                                    electionTitle={election.title}
-                                />
-                            </Box>
+                            
                         </>
                     ) : (
                         <Box sx={{ textAlign: 'center', py: 3, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 2 }}>
