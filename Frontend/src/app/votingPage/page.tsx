@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Alert } from '@mui/material';
-import Button from '../../components/Button';
+import { Box, Container, Typography, Alert, Button } from '@mui/material';
+import CustomButton from '../../components/Button';
 import './votingPage.css';
 import Navbar from '../../components/navbar';
 import { ethers } from 'ethers';
@@ -15,7 +15,7 @@ import VoterParticipationMetrics from '../../components/VoterParticipationMetric
 import { Election, Candidate, Proposal } from '../../types/electionTypes';
 
 // Update this with your deployed factory address
-const FACTORY_ADDRESS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+const FACTORY_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
 export default function VotingPage() {
   // State variables remain the same
@@ -32,6 +32,7 @@ export default function VotingPage() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [isOwner, setIsOwner] = useState(false);
   const [voterMetrics, setVoterMetrics] = useState<{ [key: number]: { total: number, voted: number } }>({});
+  const [viewingElectionDetails, setViewingElectionDetails] = useState<Election | null>(null);
 
   // All useEffect hooks remain the same
   useEffect(() => {
@@ -245,6 +246,15 @@ export default function VotingPage() {
     }
   };
 
+  // Add this function to your component (just before return statement)
+  const isElectionFinished = (election: any) => {
+    const now = Math.floor(Date.now() / 1000);
+    // Election is finished if either:
+    // 1. The ended flag is set in the contract
+    // 2. The current time is past the election's end time
+    return election.ended || (election.endTime && now > election.endTime);
+  };
+
   // Wallet not connected UI (keep as is)
   if (!provider || !signer || !account) {
     return (
@@ -257,12 +267,12 @@ export default function VotingPage() {
             <h2 style={{ color: 'white' }}>Connect Your Wallet</h2>
             <p style={{ color: 'white' }}>Please connect your wallet using the button in the navigation bar to view and participate in elections.</p>
             <div className="mt-4">
-              <Button
+              <CustomButton
                 typeofButton="primary"
                 onClickButton={() => window.location.href = '/howItWorks'}
               >
                 Learn How It Works
-              </Button>
+              </CustomButton>
             </div>
           </div>
         </div>
@@ -324,7 +334,7 @@ export default function VotingPage() {
           )}
 
           {!selectedElection ? (
-            // Elections list using flexbox instead of Grid
+            // Elections list using flexbox
             <Box
               sx={{
                 display: 'flex',
@@ -333,9 +343,12 @@ export default function VotingPage() {
                 justifyContent: 'center'
               }}
             >
+
+
               {elections.map((election) => {
                 const alreadyVoted = votedElectionIds.includes(election.id);
                 const metrics = voterMetrics[election.id] || { total: 0, voted: 0 };
+                const electionFinished = isElectionFinished(election);
 
                 return (
                   <Box
@@ -356,12 +369,40 @@ export default function VotingPage() {
                     }}
                   >
                     <ElectionCard
-                      election={election}
+                      election={{ ...election, ended: electionFinished }}
                       alreadyVoted={alreadyVoted}
                       onSelect={() => {
-                        if (!alreadyVoted) {
+                        // Only allow selection if not finished and not already voted
+                        if (!electionFinished && !alreadyVoted) {
                           setSelectedElection(election);
                           setMessage('');
+                        }
+                      }}
+                      onViewDetails={() => {
+                        // When "View Details" is clicked on an ended election
+                        setViewingElectionDetails(election);
+                        // Load proposals for this election
+                        if (electionContracts[election.id]) {
+                          const fetchProposals = async () => {
+                            try {
+                              const electionContract = electionContracts[election.id];
+                              const rawProposals = await electionContract.getAllProposals();
+
+                              if (Array.isArray(rawProposals) && rawProposals.length > 0) {
+                                const formattedProposals = rawProposals.map((p: any) => ({
+                                  name: p.name,
+                                  votes: Number(p.votes)
+                                }));
+                                setProposals(formattedProposals);
+                              } else {
+                                setProposals([]);
+                              }
+                            } catch (err) {
+                              console.error("Error fetching proposals:", err);
+                              setProposals([]);
+                            }
+                          };
+                          fetchProposals();
                         }
                       }}
                       totalVoters={metrics.total}
@@ -388,12 +429,71 @@ export default function VotingPage() {
                   </Typography>
                 </Box>
               )}
+
+              {/* Election Results Dashboard - shown when an ended election's details are viewed */}
+              {viewingElectionDetails && (
+                <Box sx={{ width: '100%', mb: 6 }}>
+                  <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography
+                      variant="h4"
+                      component="h2"
+                      sx={{
+                        fontWeight: 'bold',
+                        color: '#fff'
+                      }}
+                    >
+                      {viewingElectionDetails.title} Results
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setViewingElectionDetails(null)}
+                      sx={{
+                        color: "#aaa",
+                        borderColor: "#333",
+                        "&:hover": {
+                          borderColor: "#aaa",
+                          backgroundColor: "rgba(255, 255, 255, 0.05)",
+                        },
+                      }}
+                    >
+                      Close Results
+                    </Button>
+                  </Box>
+
+                  {/* Vote count dashboard */}
+                  {proposals.length > 0 ? (
+                    <>
+                      <VoteCountDashboard
+                        title={viewingElectionDetails.title}
+                        candidates={viewingElectionDetails.candidates}
+                        voteData={proposals.filter(p =>
+                          viewingElectionDetails.candidates.some(c => c.name === p.name)
+                        )}
+                        totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
+                      />
+
+                      {/* Voter participation metrics */}
+                      <VoterParticipationMetrics
+                        totalVoters={voterMetrics[viewingElectionDetails.id]?.total || 0}
+                        votedCount={voterMetrics[viewingElectionDetails.id]?.voted || 0}
+                        electionTitle={viewingElectionDetails.title}
+                      />
+                    </>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 2 }}>
+                      <Typography variant="body1" color="#aaa">
+                        Loading election results...
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
             </Box>
           ) : (
             <Box>
               {/* Back button */}
               <Box sx={{ mb: 4 }}>
-                <Button
+                <CustomButton
                   typeofButton="info"
                   onClickButton={() => {
                     setSelectedElection(null);
@@ -402,7 +502,7 @@ export default function VotingPage() {
                   }}
                 >
                   ← Back to Elections
-                </Button>
+                </CustomButton>
               </Box>
 
               {/* Election title */}
@@ -420,22 +520,33 @@ export default function VotingPage() {
               </Typography>
 
               {/* If election has ended or user has voted, show results */}
-              {(selectedElection.ended || votedElectionIds.includes(selectedElection.id)) && (
+              {(isElectionFinished(selectedElection) || votedElectionIds.includes(selectedElection.id)) && (
                 <>
-                  {/* Vote count dashboard */}
-                  <VoteCountDashboard
-                    title={selectedElection.title}
-                    candidates={selectedElection.candidates}
-                    voteData={proposals}
-                    totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
-                  />
+                  {/* Add a check to ensure proposals are loaded */}
+                  {proposals.length > 0 ? (
+                    <>
+                      {/* Vote count dashboard */}
+                      <VoteCountDashboard
+                        title={selectedElection.title}
+                        candidates={selectedElection.candidates}
+                        voteData={proposals}
+                        totalVotes={proposals.reduce((sum, p) => sum + p.votes, 0)}
+                      />
 
-                  {/* Voter participation metrics */}
-                  <VoterParticipationMetrics
-                    totalVoters={voterMetrics[selectedElection.id]?.total || 0}
-                    votedCount={voterMetrics[selectedElection.id]?.voted || 0}
-                    electionTitle={selectedElection.title}
-                  />
+                      {/* Voter participation metrics */}
+                      <VoterParticipationMetrics
+                        totalVoters={voterMetrics[selectedElection.id]?.total || 0}
+                        votedCount={voterMetrics[selectedElection.id]?.voted || 0}
+                        electionTitle={selectedElection.title}
+                      />
+                    </>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body1" color="#aaa">
+                        Loading election results...
+                      </Typography>
+                    </Box>
+                  )}
                 </>
               )}
 
@@ -448,10 +559,11 @@ export default function VotingPage() {
                     fontWeight: 'bold',
                     mb: 3,
                     textAlign: 'center',
-                    color: selectedElection.ended ? '#aaa' : '#fff',
+                    color: isElectionFinished(selectedElection) ? '#aaa' : '#fff',
                   }}
                 >
-                  {selectedElection.ended ? 'Final Results' : votedElectionIds.includes(selectedElection.id) ? 'Current Results' : 'Select a Candidate'}
+                  {isElectionFinished(selectedElection) ? 'Final Results' :
+                    votedElectionIds.includes(selectedElection.id) ? 'Current Results' : 'Select a Candidate'}
                 </Typography>
 
                 {/* Candidates using flexbox instead of Grid */}
@@ -504,15 +616,16 @@ export default function VotingPage() {
               </Box>
 
               {/* Submit button */}
-              {!selectedElection.ended && !votedElectionIds.includes(selectedElection.id) && (
+              {!isElectionFinished(selectedElection) && !votedElectionIds.includes(selectedElection.id) && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mb: 6 }}>
-                  <Button
+                  <CustomButton
                     typeofButton="danger"
                     onClickButton={handleBlockchainVote}
-                  // disabled={!selectedCandidate}
+                  // disabled
+                  // disabled={!selectedCandidate ? false : true} // This is critical - reactivate this!
                   >
                     {loading ? 'Processing...' : 'Submit Vote'}
-                  </Button>
+                  </CustomButton>
                 </Box>
               )}
             </Box>

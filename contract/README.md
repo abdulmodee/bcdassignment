@@ -42,7 +42,7 @@ Batch #1
 
 Deployed Addresses
 
-ElectionModule#Election - 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+ElectionModule#Election - 0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
 
 2. From the terminal where you started the local blockchain with `npx hardhat node`.
@@ -63,12 +63,12 @@ eth_maxPriorityFeePerGas
 eth_estimateGas
 eth_call
   Contract deployment: Election
-  Contract address:    0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+  Contract address:    0x5FbDB2315678afecb367f032d93F642f64180aa3
   From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
 
 eth_sendTransaction
   Contract deployment: Election
-  Contract address:    0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+  Contract address:    0x5FbDB2315678afecb367f032d93F642f64180aa3
   Transaction:         0xb5433970101443cf926c6a03c07f24e15dedc7deb722d13e34a32c8e9556fc2b
   From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
   Value:               0 ETH

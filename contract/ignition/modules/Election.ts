@@ -6,7 +6,7 @@ const VotingSystemModule = buildModule("VotingSystemModule", (m) => {
     
     // If you want to create an initial election right away:
     const now = Math.floor(Date.now() / 1000);
-    const oneDay = 24 * 60 * 60;
+    const oneDay = 1 * 60 * 60;
     
     m.call(factory, "createElection", [
         "First Election",
