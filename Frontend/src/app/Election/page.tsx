@@ -37,6 +37,8 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import EventIcon from '@mui/icons-material/Event';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { styled } from '@mui/material/styles';
 
 // Update this with your deployed factory address
 const FACTORY_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
@@ -337,21 +339,36 @@ export default function ElectionsPage() {
     } catch (err: any) {
       console.error('Error creating election:', err);
 
-      // More user-friendly error message
-      if (err.message.includes('unknown account')) {
-        setStatus('Error: Please connect your MetaMask wallet');
-      } else if (err.message.includes('insufficient funds')) {
-        setStatus("Error: You don't have enough ETH to create an election");
-      } else if (err.message.includes('user rejected')) {
-        setStatus('Transaction rejected in MetaMask');
-      } else {
-        setStatus(`Error: ${err.message}`);
-      }
-      setStatusType('error');
-    } finally {
-      setLoading(false);
-    }
-  };
+            // More user-friendly error message
+            if (err.message.includes("unknown account")) {
+                setStatus("Error: Please connect your MetaMask wallet");
+            } else if (err.message.includes("insufficient funds")) {
+                setStatus("Error: You don't have enough ETH to create an election");
+            } else if (err.message.includes("user rejected")) {
+                setStatus("Transaction rejected in MetaMask");
+            } else {
+                setStatus(`Error: ${err.message}`);
+            }
+            setStatusType('error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Add this function to handle file reading
+    const readFile = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    };
+
+    // Add this component inside your ElectionsPage component
+    const Input = styled('input')({
+        display: 'none',
+    });
 
   // Handle ending an election
   const handleEndElection = async (
@@ -511,44 +528,29 @@ export default function ElectionsPage() {
             />
           </Box>
 
-          {/* Status Alert */}
-          {status && (
-            <Alert
-              severity={statusType}
-              sx={{
-                mb: 4,
-                borderRadius: 2,
-                backgroundColor:
-                  statusType === 'success'
-                    ? 'rgba(76, 175, 80, 0.1)'
-                    : statusType === 'error'
-                    ? 'rgba(244, 67, 54, 0.1)'
-                    : statusType === 'warning'
-                    ? 'rgba(255, 152, 0, 0.1)'
-                    : 'rgba(33, 150, 243, 0.1)',
-                color:
-                  statusType === 'success'
-                    ? '#4caf50'
-                    : statusType === 'error'
-                    ? '#f44336'
-                    : statusType === 'warning'
-                    ? '#ff9800'
-                    : '#2196f3',
-                border: '1px solid',
-                borderColor:
-                  statusType === 'success'
-                    ? 'rgba(76, 175, 80, 0.2)'
-                    : statusType === 'error'
-                    ? 'rgba(244, 67, 54, 0.2)'
-                    : statusType === 'warning'
-                    ? 'rgba(255, 152, 0, 0.2)'
-                    : 'rgba(33, 150, 243, 0.2)',
-              }}
-              onClose={() => setStatus('')}
-            >
-              {status}
-            </Alert>
-          )}
+                    {/* Status Alert
+                    {status && (
+                        <Alert
+                            severity={statusType}
+                            sx={{
+                                mb: 4,
+                                borderRadius: 2,
+                                backgroundColor: statusType === 'success' ? 'rgba(76, 175, 80, 0.1)' :
+                                    statusType === 'error' ? 'rgba(244, 67, 54, 0.1)' :
+                                        statusType === 'warning' ? 'rgba(255, 152, 0, 0.1)' : 'rgba(33, 150, 243, 0.1)',
+                                color: statusType === 'success' ? '#4caf50' :
+                                    statusType === 'error' ? '#f44336' :
+                                        statusType === 'warning' ? '#ff9800' : '#2196f3',
+                                border: '1px solid',
+                                borderColor: statusType === 'success' ? 'rgba(76, 175, 80, 0.2)' :
+                                    statusType === 'error' ? 'rgba(244, 67, 54, 0.2)' :
+                                        statusType === 'warning' ? 'rgba(255, 152, 0, 0.2)' : 'rgba(33, 150, 243, 0.2)',
+                            }}
+                            onClose={() => setStatus('')}
+                        >
+                            {status}
+                        </Alert>
+                    )} */}
 
           {/* Tabs */}
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
@@ -590,81 +592,63 @@ export default function ElectionsPage() {
                   Elections You Created
                 </Typography>
 
-                {loadingElections ? (
-                  <Box display="flex" justifyContent="center" py={6}>
-                    <CircularProgress size={40} sx={{ color: '#00c896' }} />
-                  </Box>
-                ) : myElections.length > 0 ? (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                    {myElections.map((election) => (
-                      <Box
-                        key={election.address}
-                        sx={{
-                          width: {
-                            xs: '100%',
-                            sm: 'calc(50% - 16px)',
-                            lg: 'calc(33.33% - 16px)',
-                          },
-                          position: 'relative',
-                        }}
-                      >
-                        <HostCard
-                          election={election}
-                          isEnding={endingElection === election.address}
-                          onEndElection={() =>
-                            handleEndElection(election.address!, election.id)
-                          }
-                          voteData={election.candidates.map((c) => ({
-                            name: c.name,
-                            votes: c.votes || 0,
-                          }))}
-                          // voterMetrics={{
-                          //     total: election.allowedVoters?.length || 0,
-                          //     // voted: election.totalVotes || 0
-                          // }}
-                        />
-                      </Box>
-                    ))}
-                  </Box>
-                ) : (
-                  <Box
-                    textAlign="center"
-                    py={6}
-                    sx={{
-                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                      borderRadius: 4,
-                      p: 4,
-                    }}
-                  >
-                    <Typography variant="h6" color="#aaa" gutterBottom>
-                      You haven't created any elections yet
-                    </Typography>
-                    <Typography variant="body1" color="#aaa" mb={3}>
-                      Create your first election by clicking the "Create New
-                      Election" tab
-                    </Typography>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddCircleIcon />}
-                      onClick={() => setTabValue(1)}
-                      sx={{
-                        backgroundColor: '#00c896',
-                        px: 3,
-                        py: 1,
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        '&:hover': {
-                          backgroundColor: '#00e6ac',
-                        },
-                      }}
-                    >
-                      Create New Election
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-            )}
-          </Box>
+                                {loadingElections ? (
+                                    <Box display="flex" justifyContent="center" py={6}>
+                                        <CircularProgress size={40} sx={{ color: '#00c896' }} />
+                                    </Box>
+                                ) : myElections.length > 0 ? (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                        {myElections.map((election) => (
+                                            <Box
+                                                key={election.address}
+                                                sx={{
+                                                    width: { xs: '100%', sm: 'calc(50% - 16px)', lg: 'calc(33.33% - 16px)' },
+                                                    position: 'relative'
+                                                }}
+                                            >
+                                                <HostCard
+                                                    election={election}
+                                                    isEnding={endingElection === election.address}
+                                                    onEndElection={() => handleEndElection(election.address!, election.id)}
+                                                    voteData={election.candidates.map(c => ({ name: c.name, votes: c.votes || 0 }))}
+                                                // voterMetrics={{
+                                                //     total: election.allowedVoters?.length || 0,
+                                                //     // voted: election.totalVotes || 0
+                                                // }}
+                                                />
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                ) : (
+                                    <Box textAlign="center" py={6} sx={{ backgroundColor: 'rgba(0, 0, 0, 0.2)', borderRadius: 4, p: 4 }}>
+                                        <Typography variant="h6" color="#aaa" gutterBottom>
+                                            You haven't created any elections yet
+                                        </Typography>
+                                        <Typography variant="body1" color="#aaa" mb={3}>
+                                            Create your first election by clicking the "Create New Election" tab
+                                        </Typography>
+                                        <Button
+                                            variant="contained"
+                                            startIcon={<AddCircleIcon />}
+                                            onClick={() => setTabValue(1)}
+                                            sx={{
+                                                backgroundColor: "#00c896",
+                                                px: 3,
+                                                py: 1,
+                                                borderRadius: 2,
+                                                textTransform: "none",
+                                                "&:hover": {
+                                                    backgroundColor: "#00e6ac",
+                                                },
+                                            }}
+                                        >
+                                            Create New Election
+                                        </Button>
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </Box>
 
           <Box role="tabpanel" hidden={tabValue !== 1}>
             {tabValue === 1 && (
@@ -749,39 +733,100 @@ export default function ElectionsPage() {
                     />
                   </Box>
 
-                  <Box sx={{ mb: 4 }}>
-                    <Box display="flex" alignItems="center" mb={1}>
-                      <GroupIcon sx={{ color: '#00c896', mr: 1 }} />
-                      <Typography variant="h6" color="white">
-                        Voter Addresses (comma-separated)
-                      </Typography>
-                    </Box>
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={3}
-                      placeholder="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0x..."
-                      value={voters}
-                      onChange={(e) => setVoters(e.target.value)}
-                      variant="outlined"
-                      required
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'rgba(255, 255, 255, 0.23)',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#00c896',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#00c896',
-                          },
-                          color: 'white',
-                          borderRadius: 2,
-                        },
-                      }}
-                    />
-                  </Box>
+                                    <Box sx={{ mb: 4, position: 'relative' }}>
+                                        <Box display="flex" alignItems="center" mb={1}>
+                                            <GroupIcon sx={{ color: '#00c896', mr: 1 }} />
+                                            <Typography variant="h6" color="white">
+                                                Voter Addresses (comma-separated)
+                                            </Typography>
+                                        </Box>
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            rows={3}
+                                            placeholder="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0x..."
+                                            value={voters}
+                                            onChange={(e) => setVoters(e.target.value)}
+                                            variant="outlined"
+                                            required
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    '& fieldset': {
+                                                        borderColor: 'rgba(255, 255, 255, 0.23)',
+                                                    },
+                                                    '&:hover fieldset': {
+                                                        borderColor: '#00c896',
+                                                    },
+                                                    '&.Mui-focused fieldset': {
+                                                        borderColor: '#00c896',
+                                                    },
+                                                    color: 'white',
+                                                    borderRadius: 2,
+                                                },
+                                            }}
+                                        />
+
+                                        {/* File Upload Button */}
+                                        <Box sx={{ position: 'absolute', bottom: '-20px', right: '10px', zIndex: 1 }}>
+                                            <label htmlFor="upload-voters-file">
+                                                <Input
+                                                    id="upload-voters-file"
+                                                    type="file"
+                                                    accept=".txt"
+                                                    onChange={async (e) => {
+                                                        try {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+
+                                                            // Read the file
+                                                            const content = await readFile(file);
+
+                                                            // Process addresses: split by commas, newlines, or spaces and clean them
+                                                            const addresses = content
+                                                                .split(/[\n,\s]+/)
+                                                                .map(addr => addr.trim())
+                                                                .filter(addr => addr.startsWith('0x') && addr.length === 42);
+
+                                                            if (addresses.length === 0) {
+                                                                setStatus('No valid Ethereum addresses found in file');
+                                                                setStatusType('warning');
+                                                                return;
+                                                            }
+
+                                                            // Update the voters field with the parsed addresses
+                                                            setVoters(addresses.join(', '));
+                                                            setStatus(`Successfully imported ${addresses.length} voter addresses from ${file.name}`);
+                                                            setStatusType('success');
+
+                                                            // Reset the file input
+                                                            e.target.value = '';
+                                                        } catch (error) {
+                                                            console.error('Error reading file:', error);
+                                                            setStatus('Error reading file. Please try again.');
+                                                            setStatusType('error');
+                                                        }
+                                                    }}
+                                                />
+                                                <Button
+                                                    component="span"
+                                                    variant="contained"
+                                                    startIcon={<UploadFileIcon />}
+                                                    sx={{
+                                                        backgroundColor: "#00c896",
+                                                        borderRadius: "24px",
+                                                        padding: "8px 16px",
+                                                        textTransform: "none",
+                                                        boxShadow: "0 4px 12px rgba(0,200,150,0.3)",
+                                                        "&:hover": {
+                                                            backgroundColor: "#00e6ac",
+                                                        },
+                                                    }}
+                                                >
+                                                    Upload File
+                                                </Button>
+                                            </label>
+                                        </Box>
+                                    </Box>
 
                   <Box sx={{ mb: 6 }}>
                     <Box display="flex" alignItems="center" mb={1}>
@@ -791,63 +836,63 @@ export default function ElectionsPage() {
                       </Typography>
                     </Box>
 
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          flexDirection: { xs: 'column', md: 'row' },
-                          gap: 2,
-                        }}
-                      >
-                        <Box sx={{ flex: 1 }}>
-                          <DateTimePicker
-                            label="Start Time"
-                            value={startDateTime}
-                            onChange={(newValue) => setStartDateTime(newValue)}
-                            sx={{
-                              width: '100%',
-                              mt: 1,
-                              '& .MuiPickersSectionList-root': {
-                                color: '#aaa',
-                              },
-                              '& .MuiInputLabel-root': {
-                                color: '#aaa',
-                              },
-                              '& .MuiSvgIcon-root': {
-                                color: '#00c896',
-                              },
-                              '& .MuiPickersDay-root.Mui-selected': {
-                                backgroundColor: '#00c896',
-                              },
-                            }}
-                          />
-                        </Box>
+                                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    flexDirection: { xs: 'column', md: 'row' },
+                                                    gap: 2,
+                                                }}
+                                            >
+                                                <Box sx={{ flex: 1 }}>
+                                                    <DateTimePicker
+                                                        label="Start Time"
+                                                        value={startDateTime}
+                                                        onChange={(newValue) => setStartDateTime(newValue)}
+                                                        sx={{
+                                                            width: '100%',
+                                                            mt: 1,
+                                                            '& .MuiPickersSectionList-root': {
+                                                                color: '#aaa',
+                                                            },
+                                                            '& .MuiInputLabel-root': {
+                                                                color: '#aaa',
+                                                            },
+                                                            '& .MuiSvgIcon-root': {
+                                                                color: '#00c896',
+                                                            },
+                                                            '& .MuiPickersDay-root.Mui-selected': {
+                                                                backgroundColor: '#00c896',
+                                                            },
+                                                        }}
+                                                    />
+                                                </Box>
 
-                        <Box sx={{ flex: 1 }}>
-                          <DateTimePicker
-                            label="End Time"
-                            value={endDateTime}
-                            onChange={(newValue) => setEndDateTime(newValue)}
-                            sx={{
-                              width: '100%',
-                              mt: 1,
-                              '& .MuiPickersSectionList-root': {
-                                color: '#aaa',
-                              },
-                              '& .MuiInputLabel-root': {
-                                color: '#aaa',
-                              },
-                              '& .MuiSvgIcon-root': {
-                                color: '#00c896',
-                              },
-                              '& .MuiPickersDay-root.Mui-selected': {
-                                backgroundColor: '#00c896',
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Box>
-                    </LocalizationProvider>
+                                                <Box sx={{ flex: 1 }}>
+                                                    <DateTimePicker
+                                                        label="End Time"
+                                                        value={endDateTime}
+                                                        onChange={(newValue) => setEndDateTime(newValue)}
+                                                        sx={{
+                                                            width: '100%',
+                                                            mt: 1,
+                                                            '& .MuiPickersSectionList-root': {
+                                                                color: '#aaa',
+                                                            },
+                                                            '& .MuiInputLabel-root': {
+                                                                color: '#aaa',
+                                                            },
+                                                            '& .MuiSvgIcon-root': {
+                                                                color: '#00c896',
+                                                            },
+                                                            '& .MuiPickersDay-root.Mui-selected': {
+                                                                backgroundColor: '#00c896',
+                                                            },
+                                                        }}
+                                                    />
+                                                </Box>
+                                            </Box>
+                                        </LocalizationProvider>
 
                     {/* Time period info */}
                     {startDateTime && endDateTime && (
