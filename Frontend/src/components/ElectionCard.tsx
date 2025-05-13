@@ -1,15 +1,15 @@
 import React from 'react';
-import { Box, Typography, Paper, Chip, LinearProgress } from '@mui/material';
+import { Box, Typography, Paper, Chip, LinearProgress, Button } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PendingIcon from '@mui/icons-material/Pending';
-import DoneIcon from '@mui/icons-material/Done';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Election } from '../types/electionTypes';
 
 interface ElectionCardProps {
     election: Election;
     alreadyVoted: boolean;
     onSelect: () => void;
+    onViewDetails: () => void; // New prop for viewing details
     totalVoters: number;
     votedCount: number;
 }
@@ -18,6 +18,7 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
     election,
     alreadyVoted,
     onSelect,
+    onViewDetails, // New prop
     totalVoters,
     votedCount
 }) => {
@@ -46,6 +47,9 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
     } else if (now < startTime) {
         status = 'upcoming';
     }
+
+    // Is the election ended (either by contract flag or by time)
+    const isEnded = status === 'ended';
 
     // Format time remaining
     const formatTimeRemaining = () => {
@@ -88,18 +92,18 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                 borderRadius: 4,
                 backgroundColor: '#1f1f1f',
                 transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: alreadyVoted ? 'default' : 'pointer',
+                cursor: isEnded || alreadyVoted ? 'default' : 'pointer',
                 position: 'relative',
                 overflow: 'hidden',
                 mb: 3,
                 '&:hover': {
-                    transform: alreadyVoted ? 'none' : 'translateY(-4px)',
-                    boxShadow: alreadyVoted ? 3 : '0 8px 24px rgba(0,0,0,0.15)',
+                    transform: isEnded || alreadyVoted ? 'none' : 'translateY(-4px)',
+                    boxShadow: isEnded || alreadyVoted ? 3 : '0 8px 24px rgba(0,0,0,0.15)',
                 },
-                opacity: alreadyVoted ? 0.85 : 1,
-                border: alreadyVoted ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                opacity: isEnded || alreadyVoted ? 0.9 : 1,
+                border: isEnded || alreadyVoted ? '1px solid rgba(255,255,255,0.1)' : 'none',
             }}
-            onClick={() => !alreadyVoted && onSelect()}
+            onClick={() => !isEnded && !alreadyVoted && onSelect()}
         >
             {/* Status indicator */}
             <Box
@@ -111,7 +115,6 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                 }}
             >
                 <Chip
-                    // icon={<StatusIcon />}
                     label={statusLabels[status]}
                     sx={{
                         backgroundColor: `${statusColors[status]}20`,
@@ -150,19 +153,6 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                     />
                 )}
             </Box>
-
-            {/* Candidates count */}
-            {/* <Typography
-                variant="h5"
-                fontWeight="bold"
-                sx={{
-                    mb: 2,
-                    pr: 8, // Space for status chip
-                    color: '#fff'
-                }}
-            >
-                {election.title}
-            </Typography> */}
 
             {/* Candidates count */}
             <Typography
@@ -209,39 +199,37 @@ const ElectionCard: React.FC<ElectionCardProps> = ({
                     gap: 0.5,
                     color: status === 'ended' ? '#9e9e9e' :
                         status === 'ending' ? '#ff9800' : '#00c896',
-                    mb: 3
+                    mb: isEnded ? 3 : 1.5 // More margin if we don't have the button
                 }}
             >
                 <AccessTimeIcon fontSize="small" />
                 {formatTimeRemaining()}
             </Typography>
 
-            {/* Participation rate */}
-            <Box sx={{ mb: 0.5 }}>
-                <Typography variant="body2" color="#fff">
-                    Voter Participation
-                </Typography>
-            </Box>
-            <LinearProgress
-                variant="determinate"
-                value={participationRate}
-                sx={{
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: 'rgba(255,255,255,0.05)',
-                    '& .MuiLinearProgress-bar': {
-                        backgroundColor: '#3f51b5',
-                    }
-                }}
-            />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                <Typography variant="caption" color="#fff">
-                    {votedCount} voted
-                </Typography>
-                <Typography variant="caption" color="#fff">
-                    {participationRate.toFixed(0)}%
-                </Typography>
-            </Box>
+            {/* View Details Button - only for ended elections */}
+            {isEnded && (
+                <Button
+                    variant="outlined"
+                    startIcon={<VisibilityIcon />}
+                    fullWidth
+                    onClick={(e) => {
+                        e.stopPropagation(); // Prevent parent onClick from firing
+                        onViewDetails();
+                    }}
+                    sx={{
+                        color: "#4dabf5",
+                        borderColor: "#4dabf5",
+                        textTransform: "none",
+                        borderRadius: 2,
+                        "&:hover": {
+                            borderColor: "#2196f3",
+                            backgroundColor: "rgba(33, 150, 243, 0.08)",
+                        },
+                    }}
+                >
+                    View Results
+                </Button>
+            )}
         </Paper>
     );
 };

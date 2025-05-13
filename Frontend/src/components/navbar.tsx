@@ -5,7 +5,7 @@ import { useWallet } from './WalletProvider';
 
 const navLinks = [
   { label: 'Vote Now', path: '/votingPage' },
-  { label: 'Host Elections', path: '/createElection' },
+  { label: 'Elections', path: '/Election' },
   { label: 'How It Works', path: '/howItWorks' },
 ];
 
