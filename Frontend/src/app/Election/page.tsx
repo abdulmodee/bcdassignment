@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ethers, Contract } from 'ethers';
 import FactoryABI from '../../ABI/ElectionFactoryABI.json';
 import ElectionABI from '../../ABI/ElectionABI.json';
@@ -191,6 +191,12 @@ export default function ElectionsPage() {
         fetchMyElections();
     }, [factoryContract, account, signer]);
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const handleButtonClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    }
     // Handle form submission to create new election
     const handleElection = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -238,7 +244,6 @@ export default function ElectionsPage() {
         try {
             const proposalArray = proposals.split(',').map((p) => p.trim());
             const voterArray = voters.split(',').map((v) => v.trim());
-
             // Convert to UNIX timestamps (seconds)
             const startTimestamp = Math.floor(startDateTime.valueOf() / 1000);
             const endTimestamp = Math.floor(endDateTime.valueOf() / 1000);
@@ -777,7 +782,6 @@ export default function ElectionsPage() {
 
                                                             // Read the file
                                                             const content = await readFile(file);
-
                                                             // Process addresses: split by commas, newlines, or spaces and clean them
                                                             const addresses = content
                                                                 .split(/[\n,\s]+/)
@@ -807,6 +811,7 @@ export default function ElectionsPage() {
                                                 <Button
                                                     component="span"
                                                     variant="contained"
+                                                    onClick={handleButtonClick}
                                                     startIcon={<UploadFileIcon />}
                                                     sx={{
                                                         backgroundColor: "#00c896",
